@@ -128,3 +128,54 @@ func (h *Handler) GetAudit(c fiber.Ctx) error {
 		"issues": issues,
 	})
 }
+
+// ListAudits returns recent audits for the authenticated user, optionally filtered by project.
+func (h *Handler) ListAudits(c fiber.Ctx) error {
+	userID := c.Locals("user_id").(string)
+	projectID := c.Query("project_id")
+	limit := 20
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var (
+		pgRows interface {
+			Next() bool
+			Scan(...any) error
+			Close()
+		}
+		err error
+	)
+	if projectID != "" {
+		pgRows, err = h.pool.Query(ctx, `
+			SELECT id, project_id, user_id, status, total_pages, crawled_pages, score, issues, created_at, completed_at
+			FROM audits WHERE user_id = $1 AND project_id = $2
+			ORDER BY created_at DESC LIMIT $3
+		`, userID, projectID, limit)
+	} else {
+		pgRows, err = h.pool.Query(ctx, `
+			SELECT id, project_id, user_id, status, total_pages, crawled_pages, score, issues, created_at, completed_at
+			FROM audits WHERE user_id = $1
+			ORDER BY created_at DESC LIMIT $2
+		`, userID, limit)
+	}
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch audits"})
+	}
+	defer pgRows.Close()
+
+	var audits []models.Audit
+	for pgRows.Next() {
+		var a models.Audit
+		if err := pgRows.Scan(&a.ID, &a.ProjectID, &a.UserID, &a.Status,
+			&a.TotalPages, &a.CrawledPages, &a.Score, &a.Issues,
+			&a.CreatedAt, &a.CompletedAt); err == nil {
+			audits = append(audits, a)
+		}
+	}
+	if audits == nil {
+		audits = []models.Audit{}
+	}
+
+	return c.JSON(fiber.Map{"data": audits, "count": len(audits)})
+}

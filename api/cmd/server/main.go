@@ -94,6 +94,7 @@ func main() {
 	protected.Delete("/projects/:id", h.DeleteProject)
 
 	// Audits — JWT + plan rate limit
+	protected.Get("/audits", h.ListAudits)
 	protected.Post("/audits", apimw.PlanRateLimit(rdb), h.TriggerAudit)
 	protected.Get("/audits/:id", h.GetAudit)
 

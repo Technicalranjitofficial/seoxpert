@@ -71,7 +71,11 @@ export default function AuditSection({
       cache: "no-store",
     });
     if (!res.ok) return null;
-    return res.json();
+    const json = await res.json().catch(() => null);
+    if (!json) return null;
+    // API returns { data: audit, issues: [] } — merge into flat object
+    const audit: Audit = { ...(json.data ?? json), issues: json.issues ?? json.data?.issues };
+    return audit;
   }, [supabase]);
 
   // Poll running audits every 3s
@@ -111,15 +115,17 @@ export default function AuditSection({
       return;
     }
 
+    // API returns { data: { id, ... }, message }
+    const auditId = data.data?.id ?? data.audit_id ?? data.id;
     const newAudit: Audit = {
-      id: data.audit_id,
+      id: auditId,
       project_id: project.id,
       status: "pending",
       created_at: new Date().toISOString(),
     };
     setAudits(prev => [newAudit, ...prev]);
     setSelectedAudit(newAudit);
-    setPollingId(data.audit_id);
+    setPollingId(auditId);
     setTriggering(false);
   };
 
