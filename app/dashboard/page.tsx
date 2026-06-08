@@ -30,11 +30,11 @@ export default async function DashboardPage() {
 
     if (projRes.ok) {
       const d = await projRes.json().catch(() => ({}));
-      projects = d.projects ?? [];
+      projects = d.data ?? d.projects ?? [];
     }
     if (auditRes?.ok) {
       const d = await auditRes.json().catch(() => ({}));
-      recentAudits = d.audits ?? [];
+      recentAudits = d.data ?? d.audits ?? [];
     }
   }
 

@@ -46,7 +46,8 @@ export default function NewProjectPage() {
       return;
     }
 
-    router.push(`/dashboard/projects/${data.id}`);
+    const project = data.data ?? data;
+    router.push(`/dashboard/projects/${project.id}`);
   };
 
   return (

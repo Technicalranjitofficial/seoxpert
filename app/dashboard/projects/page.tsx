@@ -22,7 +22,7 @@ export default async function ProjectsPage() {
     });
     if (res.ok) {
       const d = await res.json().catch(() => ({}));
-      projects = d.projects ?? [];
+      projects = d.data ?? d.projects ?? [];
     }
   }
 
