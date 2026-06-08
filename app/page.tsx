@@ -48,9 +48,23 @@ export default function Home() {
           </div>
           <span className="text-xl font-black tracking-tight">Seo<span className="gradient-text">Xpert</span></span>
         </div>
-        <span className="hidden md:flex items-center gap-2 text-xs text-indigo-400 glass px-3 py-1.5 rounded-full">
-          <Zap size={12} /> Launching Soon
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="hidden md:flex items-center gap-2 text-xs text-indigo-400 glass px-3 py-1.5 rounded-full">
+            <Zap size={12} /> Launching Soon
+          </span>
+          <a
+            href="/login"
+            className="text-sm text-gray-300 hover:text-white px-4 py-2 rounded-lg hover:bg-white/5 transition-colors"
+          >
+            Sign In
+          </a>
+          <a
+            href="/signup"
+            className="text-sm font-semibold bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white px-4 py-2 rounded-lg transition-all"
+          >
+            Sign Up
+          </a>
+        </div>
       </header>
 
       {/* Hero */}
