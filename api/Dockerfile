@@ -6,17 +6,18 @@ RUN apk add --no-cache git ca-certificates tzdata
 
 WORKDIR /build
 
-# Copy workspace descriptor first — changes rarely.
-COPY go.work go.work.sum* ./
+# Copy workspace descriptor.
+COPY go.work ./
 
-# Copy go.mod files for layer caching.
+# Copy ALL go.mod files (go work sync needs them all to resolve the workspace).
 COPY shared/go.mod shared/go.mod
 COPY api/go.mod api/go.mod
+COPY workers/crawler/go.mod workers/crawler/go.mod
 
-# Pre-download deps before copying source.
-RUN go work sync
+# Download dependencies for the api module (uses workspace for replace directives).
+RUN cd api && go mod download
 
-# Copy full source.
+# Copy only the relevant source.
 COPY shared/ shared/
 COPY api/ api/
 

@@ -5,12 +5,18 @@ RUN apk add --no-cache git ca-certificates
 
 WORKDIR /build
 
-COPY go.work go.work.sum* ./
+# Copy workspace descriptor.
+COPY go.work ./
+
+# Copy ALL go.mod files (go work requires them all present).
 COPY shared/go.mod shared/go.mod
+COPY api/go.mod api/go.mod
 COPY workers/crawler/go.mod workers/crawler/go.mod
 
-RUN go work sync
+# Download dependencies for the crawler module.
+RUN cd workers/crawler && go mod download
 
+# Copy only the relevant source.
 COPY shared/ shared/
 COPY workers/crawler/ workers/crawler/
 
