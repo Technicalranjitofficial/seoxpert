@@ -42,9 +42,9 @@ func IPRateLimit(rdb *cache.Client, limit int64, window time.Duration) fiber.Han
 func PlanRateLimit(rdb *cache.Client) fiber.Handler {
 	// Daily limits per plan
 	limits := map[string]int64{
-		"free":   1,
-		"pro":    10,
-		"agency": 100,
+		"free":   100,
+		"pro":    500,
+		"agency": 2000,
 	}
 
 	return func(c fiber.Ctx) error {
