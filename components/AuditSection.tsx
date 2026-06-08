@@ -18,6 +18,7 @@ interface AuditIssue {
   title: string;
   description: string;
   suggestion: string;
+  value: string;
   url: string;
 }
 
@@ -148,6 +149,16 @@ function IssueCard({ issue, defaultOpen = false }: { issue: AuditIssue; defaultO
               <p className="text-gray-200 text-sm leading-relaxed">{issue.description}</p>
             </div>
           </div>
+
+          {/* Detected value — the actual content that triggered the issue */}
+          {issue.value && (
+            <div>
+              <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1.5">Detected Value</p>
+              <div className="bg-black/40 border border-white/8 rounded-lg px-3.5 py-3">
+                <p className={`text-sm font-mono break-all leading-relaxed ${m.color}`}>{issue.value}</p>
+              </div>
+            </div>
+          )}
 
           {/* How to fix */}
           {issue.suggestion && (

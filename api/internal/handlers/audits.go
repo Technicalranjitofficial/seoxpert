@@ -104,7 +104,7 @@ func (h *Handler) GetAudit(c fiber.Ctx) error {
 	var issues []models.AuditIssue
 	if audit.Status == models.AuditStatusCompleted {
 		rows, err := h.pool.Query(ctx, `
-			SELECT id, audit_id, url, check_type, severity, title, description, suggestion
+			SELECT id, audit_id, url, check_type, severity, title, description, suggestion, value
 			FROM audit_issues
 			WHERE audit_id = $1
 			ORDER BY
@@ -116,7 +116,7 @@ func (h *Handler) GetAudit(c fiber.Ctx) error {
 			defer rows.Close()
 			for rows.Next() {
 				var i models.AuditIssue
-				if err := rows.Scan(&i.ID, &i.AuditID, &i.URL, &i.CheckType, &i.Severity, &i.Title, &i.Description, &i.Suggestion); err == nil {
+				if err := rows.Scan(&i.ID, &i.AuditID, &i.URL, &i.CheckType, &i.Severity, &i.Title, &i.Description, &i.Suggestion, &i.Value); err == nil {
 					issues = append(issues, i)
 				}
 			}

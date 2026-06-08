@@ -42,6 +42,7 @@ type AuditIssue struct {
 	Title       string        `json:"title"`
 	Description string        `json:"description"`
 	Suggestion  string        `json:"suggestion"`
+	Value       string        `json:"value"` // the actual offending value (e.g. the title text, meta desc text)
 }
 
 // AuditSummary is returned by the API for dashboard cards.

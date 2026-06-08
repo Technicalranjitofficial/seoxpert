@@ -46,8 +46,8 @@ func main() {
 	handleAudit := func(ctx context.Context, job events.AuditJob) error {
 		slog.Info("audit started", "audit_id", job.AuditID, "domain", job.Domain)
 
-		// ── Multi-page BFS crawl ──────────────────────────────────────────
-		startURL := "https://" + job.Domain
+		// ── Multi-page BFS crawl ──────────────────────────────────────
+		startURL := engine.NormaliseURL("https://" + job.Domain)
 		visited := map[string]bool{startURL: true}
 		queue := []string{startURL}
 		crawled := 0
@@ -84,9 +84,10 @@ func main() {
 					slog.Warn("link discovery failed", "url", pageURL, "err", err)
 				}
 				for _, link := range links {
-					if !visited[link] && len(visited) < maxPages {
-						visited[link] = true
-						queue = append(queue, link)
+					norm := engine.NormaliseURL(link)
+					if !visited[norm] && len(visited) < maxPages {
+						visited[norm] = true
+						queue = append(queue, norm)
 					}
 				}
 			}

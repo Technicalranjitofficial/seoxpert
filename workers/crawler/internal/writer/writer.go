@@ -29,10 +29,10 @@ func (w *Writer) SavePageResult(ctx context.Context, result *engine.PageResult) 
 	batch := &pgxBatch{}
 	for _, issue := range result.Issues {
 		batch.add(`
-			INSERT INTO audit_issues (audit_id, url, check_type, severity, title, description, suggestion)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			INSERT INTO audit_issues (audit_id, url, check_type, severity, title, description, suggestion, value)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		`, issue.AuditID, issue.URL, issue.CheckType, string(issue.Severity),
-			issue.Title, issue.Description, issue.Suggestion)
+			issue.Title, issue.Description, issue.Suggestion, issue.Value)
 	}
 
 	return batch.send(ctx, w.pool)

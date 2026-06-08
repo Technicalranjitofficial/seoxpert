@@ -103,6 +103,10 @@ func (e *Engine) DiscoverLinks(ctx context.Context, pageURL, domain string) ([]s
 		if strings.TrimPrefix(u.Hostname(), "www.") == strings.TrimPrefix(domain, "www.") {
 			u.RawQuery = ""
 			u.Fragment = ""
+			// Normalise: strip trailing slash from path (except root "/")
+			if len(u.Path) > 1 {
+				u.Path = strings.TrimRight(u.Path, "/")
+			}
 			clean := u.String()
 			// Skip common non-content paths
 			ext := strings.ToLower(u.Path)
@@ -115,6 +119,20 @@ func (e *Engine) DiscoverLinks(ctx context.Context, pageURL, domain string) ([]s
 		}
 	}
 	return internal, nil
+}
+
+// NormaliseURL strips trailing slashes and query strings for deduplication.
+func NormaliseURL(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+	u.RawQuery = ""
+	u.Fragment = ""
+	if len(u.Path) > 1 {
+		u.Path = strings.TrimRight(u.Path, "/")
+	}
+	return u.String()
 }
 
 // CrawlPage runs all SEO checks on a single URL and returns issues.
@@ -244,26 +262,28 @@ func checkTitle(auditID, pageURL, title string, titleLen int) *models.AuditIssue
 	if title == "" {
 		return issue(auditID, pageURL, "missing_title", models.SeverityCritical,
 			"Missing page title",
-			"The page has no <title> tag.",
-			"Add a descriptive title tag between 50–60 characters.")
+			"The page has no <title> tag. This is a critical ranking factor.",
+			"Add a descriptive title tag between 50–60 characters.",
+			"")
 	}
 	if titleLen < 10 {
 		return issue(auditID, pageURL, "title_too_short", models.SeverityWarning,
 			"Title too short",
-			fmt.Sprintf("Title is only %d characters: %q", titleLen, title),
-			"Expand the title to 50–60 characters with the primary keyword.")
+			fmt.Sprintf("Title is only %d characters. Google may ignore very short titles.", titleLen),
+			"Expand the title to 50–60 characters with the primary keyword.",
+			title)
 	}
 	if titleLen > 70 {
 		return issue(auditID, pageURL, "title_too_long", models.SeverityWarning,
 			"Title too long",
-			fmt.Sprintf("Title is %d characters — Google truncates at ~60.", titleLen),
-			"Shorten the title to under 60 characters.")
+			fmt.Sprintf("Title is %d characters — Google truncates at ~60 in search results.", titleLen),
+			"Shorten the title to under 60 characters.",
+			title)
 	}
 	return nil
 }
 
 func checkTitleKeyword(auditID, pageURL, title string) *models.AuditIssue {
-	// Heuristic: title should not be all caps or all lowercase (formatting issue)
 	t := strings.TrimSpace(title)
 	if t == "" {
 		return nil
@@ -272,7 +292,8 @@ func checkTitleKeyword(auditID, pageURL, title string) *models.AuditIssue {
 		return issue(auditID, pageURL, "title_all_caps", models.SeverityInfo,
 			"Title is all caps",
 			"Title tags written in ALL CAPS can appear spammy in search results.",
-			"Use standard title case or sentence case for the title tag.")
+			"Use standard title case or sentence case for the title tag.",
+			t)
 	}
 	return nil
 }
@@ -282,20 +303,23 @@ func checkMetaDesc(auditID, pageURL, desc string, descLen int) *models.AuditIssu
 	if desc == "" {
 		return issue(auditID, pageURL, "missing_meta_desc", models.SeverityWarning,
 			"Missing meta description",
-			"No meta description tag found.",
-			"Add a meta description of 120–160 characters summarising the page.")
+			"No meta description tag found. Google often uses this as the snippet in search results.",
+			"Add a meta description of 120–160 characters summarising the page.",
+			"")
 	}
 	if descLen < 50 {
 		return issue(auditID, pageURL, "meta_desc_too_short", models.SeverityInfo,
 			"Meta description too short",
-			fmt.Sprintf("Description is only %d characters.", descLen),
-			"Expand the meta description to 120–160 characters.")
+			fmt.Sprintf("Description is only %d characters. It won't fill the SERP snippet.", descLen),
+			"Expand the meta description to 120–160 characters.",
+			desc)
 	}
 	if descLen > 165 {
 		return issue(auditID, pageURL, "meta_desc_too_long", models.SeverityInfo,
 			"Meta description too long",
-			fmt.Sprintf("Description is %d characters.", descLen),
-			"Keep meta descriptions under 160 characters to avoid SERP truncation.")
+			fmt.Sprintf("Description is %d characters — Google truncates at ~160.", descLen),
+			"Keep meta descriptions under 160 characters to avoid SERP truncation.",
+			desc)
 	}
 	return nil
 }
@@ -304,14 +328,16 @@ func checkH1(auditID, pageURL string, h1s []string) *models.AuditIssue {
 	if len(h1s) == 0 {
 		return issue(auditID, pageURL, "missing_h1", models.SeverityCritical,
 			"Missing H1 heading",
-			"No <h1> tag found on this page.",
-			"Add one H1 tag containing the primary keyword for this page.")
+			"No <h1> tag found on this page. H1 is a primary signal for page topic.",
+			"Add one H1 tag containing the primary keyword for this page.",
+			"")
 	}
 	if len(h1s) > 1 {
 		return issue(auditID, pageURL, "multiple_h1", models.SeverityWarning,
 			"Multiple H1 headings",
 			fmt.Sprintf("Found %d H1 tags — pages should have exactly one.", len(h1s)),
-			"Keep a single H1 and use H2–H6 for sub-headings.")
+			"Keep a single H1 and use H2–H6 for sub-headings.",
+			strings.Join(h1s, " | "))
 	}
 	return nil
 }
@@ -324,8 +350,9 @@ func checkH1Length(auditID, pageURL, h1Text string) *models.AuditIssue {
 	if words > 10 {
 		return issue(auditID, pageURL, "h1_too_long", models.SeverityInfo,
 			"H1 heading is too long",
-			fmt.Sprintf("H1 has %d words: %q", words, h1Text),
-			"Keep H1 headings concise — ideally under 8 words with the main keyword.")
+			fmt.Sprintf("H1 has %d words. Long H1s dilute keyword focus.", words),
+			"Keep H1 headings concise — ideally under 8 words with the main keyword.",
+			h1Text)
 	}
 	return nil
 }
@@ -334,8 +361,9 @@ func checkHeadingStructure(auditID, pageURL string, h2s []string) *models.AuditI
 	if len(h2s) == 0 {
 		return issue(auditID, pageURL, "no_h2_headings", models.SeverityInfo,
 			"No H2 subheadings",
-			"Page has no H2 headings to break up content.",
-			"Add H2 subheadings to improve readability and keyword coverage.")
+			"Page has no H2 headings to break up content and signal topic sections.",
+			"Add H2 subheadings to improve readability and keyword coverage.",
+			"")
 	}
 	return nil
 }
@@ -344,8 +372,9 @@ func checkViewport(auditID, pageURL string, hasViewport bool) *models.AuditIssue
 	if !hasViewport {
 		return issue(auditID, pageURL, "missing_viewport", models.SeverityCritical,
 			"Missing viewport meta tag",
-			"No <meta name=\"viewport\"> — page is not mobile-friendly.",
-			"Add: <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">")
+			"No <meta name=\"viewport\"> found. This page will not render correctly on mobile devices.",
+			"Add: <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">",
+			"<meta name=\"viewport\"> not found")
 	}
 	return nil
 }
@@ -354,14 +383,16 @@ func checkPageSpeed(auditID, pageURL string, loadMs int64) *models.AuditIssue {
 	if loadMs > 5000 {
 		return issue(auditID, pageURL, "slow_page_load", models.SeverityCritical,
 			"Very slow page load",
-			fmt.Sprintf("Page took %dms to load in headless Chrome.", loadMs),
-			"Optimise server response time, eliminate render-blocking resources, and enable compression.")
+			fmt.Sprintf("Page took %dms to load. Google's Core Web Vitals threshold for LCP is 2.5s.", loadMs),
+			"Optimise server response time, eliminate render-blocking resources, and enable compression.",
+			fmt.Sprintf("%dms load time", loadMs))
 	}
 	if loadMs > 3000 {
 		return issue(auditID, pageURL, "slow_page_load", models.SeverityWarning,
 			"Slow page load",
 			fmt.Sprintf("Page took %dms to load. Google recommends under 2.5s (LCP).", loadMs),
-			"Reduce JavaScript bundle size, lazy-load images, and use a CDN.")
+			"Reduce JavaScript bundle size, lazy-load images, and use a CDN.",
+			fmt.Sprintf("%dms load time", loadMs))
 	}
 	return nil
 }
@@ -370,8 +401,9 @@ func checkLang(auditID, pageURL, lang string) *models.AuditIssue {
 	if strings.TrimSpace(lang) == "" {
 		return issue(auditID, pageURL, "missing_lang", models.SeverityWarning,
 			"Missing lang attribute on <html>",
-			"The <html> element has no lang attribute.",
-			"Add lang=\"en\" (or appropriate language code) to the <html> tag.")
+			"The <html> element has no lang attribute. This affects screen readers and search engines.",
+			"Add lang=\"en\" (or appropriate language code) to the <html> tag.",
+			"<html> — no lang attribute")
 	}
 	return nil
 }
@@ -380,15 +412,17 @@ func checkCanonical(auditID, pageURL, canonical string) *models.AuditIssue {
 	if canonical == "" {
 		return issue(auditID, pageURL, "missing_canonical", models.SeverityInfo,
 			"Missing canonical link",
-			"No <link rel=\"canonical\"> tag found.",
-			"Add a canonical URL to prevent duplicate content issues.")
+			"No <link rel=\"canonical\"> tag found. Without it, search engines may index duplicate URLs.",
+			"Add a canonical URL to prevent duplicate content issues.",
+			"")
 	}
 	u, err := url.Parse(canonical)
 	if err != nil || !u.IsAbs() {
 		return issue(auditID, pageURL, "invalid_canonical", models.SeverityWarning,
 			"Canonical URL is relative or invalid",
-			fmt.Sprintf("canonical=%q should be an absolute URL.", canonical),
-			"Use a full absolute URL for the canonical tag.")
+			"The canonical tag must use an absolute URL for search engines to resolve it correctly.",
+			"Use a full absolute URL for the canonical tag.",
+			canonical)
 	}
 	return nil
 }
@@ -398,8 +432,9 @@ func checkRobotsMeta(auditID, pageURL, robotsMeta string) *models.AuditIssue {
 	if strings.Contains(lower, "noindex") {
 		return issue(auditID, pageURL, "noindex_page", models.SeverityCritical,
 			"Page is blocked from indexing",
-			fmt.Sprintf("meta robots contains 'noindex': %q", robotsMeta),
-			"Remove 'noindex' from the robots meta tag unless you intentionally want this page excluded from search.")
+			"The robots meta tag contains 'noindex' — this page will not appear in Google search results.",
+			"Remove 'noindex' from the robots meta tag unless you intentionally want this page excluded.",
+			robotsMeta)
 	}
 	return nil
 }
@@ -408,8 +443,9 @@ func checkContentLength(auditID, pageURL string, wordCount int) *models.AuditIss
 	if wordCount < 100 {
 		return issue(auditID, pageURL, "thin_content", models.SeverityWarning,
 			"Thin content",
-			fmt.Sprintf("Page has only ~%d words of visible text.", wordCount),
-			"Expand the page content to at least 300 words for better topical coverage.")
+			fmt.Sprintf("Page has only ~%d words of visible text. Thin pages rank poorly.", wordCount),
+			"Expand the page content to at least 300 words for better topical coverage.",
+			fmt.Sprintf("~%d words detected", wordCount))
 	}
 	return nil
 }
@@ -420,8 +456,9 @@ func checkDuplicateContent(auditID, pageURL, title, h1 string) *models.AuditIssu
 	if t != "" && h != "" && t == h {
 		return issue(auditID, pageURL, "title_h1_duplicate", models.SeverityInfo,
 			"Title and H1 are identical",
-			"Page title and H1 contain exactly the same text.",
-			"Differentiate the title (for SERPs) and H1 (for users) to target keyword variations.")
+			"Page title and H1 contain exactly the same text. You're missing a chance to target keyword variations.",
+			"Differentiate the title (for SERPs) and H1 (for users) to target keyword variations.",
+			title)
 	}
 	return nil
 }
@@ -434,14 +471,16 @@ func checkImageAlt(auditID, pageURL string, missing, total int) *models.AuditIss
 	if pct >= 50 {
 		return issue(auditID, pageURL, "images_missing_alt", models.SeverityWarning,
 			"Images missing alt text",
-			fmt.Sprintf("%d of %d images are missing alt attributes (%d%%).", missing, total, pct),
-			"Add descriptive alt text to all images for accessibility and image SEO.")
+			fmt.Sprintf("%d of %d images (%d%%) are missing alt attributes.", missing, total, pct),
+			"Add descriptive alt text to all images for accessibility and image SEO.",
+			fmt.Sprintf("%d/%d images missing alt", missing, total))
 	}
 	if missing > 0 {
 		return issue(auditID, pageURL, "images_missing_alt", models.SeverityInfo,
 			"Some images missing alt text",
 			fmt.Sprintf("%d of %d images are missing alt attributes.", missing, total),
-			"Add descriptive alt text to all content images.")
+			"Add descriptive alt text to all content images.",
+			fmt.Sprintf("%d/%d images missing alt", missing, total))
 	}
 	return nil
 }
@@ -460,14 +499,16 @@ func checkOGTags(auditID, pageURL string, hasTitle, hasDesc, hasImage bool) *mod
 	if len(missing) == 3 {
 		return issue(auditID, pageURL, "missing_og_tags", models.SeverityWarning,
 			"Missing Open Graph tags",
-			"No Open Graph meta tags found (og:title, og:description, og:image).",
-			"Add Open Graph tags so your page looks great when shared on social media.")
+			"No Open Graph meta tags found. Your page will look plain when shared on Facebook, LinkedIn, etc.",
+			"Add og:title, og:description, and og:image meta tags.",
+			"og:title, og:description, og:image — all missing")
 	}
 	if len(missing) > 0 {
 		return issue(auditID, pageURL, "incomplete_og_tags", models.SeverityInfo,
 			"Incomplete Open Graph tags",
-			fmt.Sprintf("Missing: %s", strings.Join(missing, ", ")),
-			"Add all three Open Graph tags (og:title, og:description, og:image) for optimal social sharing.")
+			fmt.Sprintf("Missing Open Graph tags: %s", strings.Join(missing, ", ")),
+			"Add all three Open Graph tags for optimal social sharing.",
+			strings.Join(missing, ", "))
 	}
 	return nil
 }
@@ -476,8 +517,9 @@ func checkTwitterCard(auditID, pageURL string, hasTwitter bool) *models.AuditIss
 	if !hasTwitter {
 		return issue(auditID, pageURL, "missing_twitter_card", models.SeverityInfo,
 			"Missing Twitter/X Card meta tag",
-			"No <meta name=\"twitter:card\"> found.",
-			"Add twitter:card, twitter:title, and twitter:description tags for better Twitter/X sharing.")
+			"No <meta name=\"twitter:card\"> found. Links shared on Twitter/X will use a plain link preview.",
+			"Add twitter:card, twitter:title, and twitter:description meta tags.",
+			"")
 	}
 	return nil
 }
@@ -486,8 +528,9 @@ func checkSchema(auditID, pageURL string, hasSchema bool) *models.AuditIssue {
 	if !hasSchema {
 		return issue(auditID, pageURL, "no_structured_data", models.SeverityInfo,
 			"No structured data (JSON-LD)",
-			"No <script type=\"application/ld+json\"> found.",
-			"Add Schema.org structured data to enable rich results in Google Search.")
+			"No <script type=\"application/ld+json\"> found. Structured data enables rich results (stars, FAQs, breadcrumbs).",
+			"Add Schema.org structured data to enable rich results in Google Search.",
+			"")
 	}
 	return nil
 }
@@ -496,14 +539,15 @@ func checkHTTPS(auditID, pageURL string, hasHTTPS bool) *models.AuditIssue {
 	if !hasHTTPS {
 		return issue(auditID, pageURL, "no_https", models.SeverityCritical,
 			"Page not served over HTTPS",
-			"The page URL uses HTTP, not HTTPS.",
-			"Install an SSL certificate and redirect all HTTP traffic to HTTPS.")
+			"The page URL uses HTTP. Google marks HTTP pages as 'Not Secure' and penalises them in rankings.",
+			"Install an SSL certificate and redirect all HTTP traffic to HTTPS.",
+			pageURL)
 	}
 	return nil
 }
 
-// issue is a helper to create an AuditIssue.
-func issue(auditID, pageURL, checkType string, severity models.AuditSeverity, title, desc, suggestion string) *models.AuditIssue {
+// issue is a helper to create an AuditIssue with the actual offending value.
+func issue(auditID, pageURL, checkType string, severity models.AuditSeverity, title, desc, suggestion, value string) *models.AuditIssue {
 	return &models.AuditIssue{
 		AuditID:     auditID,
 		URL:         pageURL,
@@ -512,6 +556,7 @@ func issue(auditID, pageURL, checkType string, severity models.AuditSeverity, ti
 		Title:       title,
 		Description: desc,
 		Suggestion:  suggestion,
+		Value:       value,
 	}
 }
 
