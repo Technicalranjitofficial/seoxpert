@@ -32,7 +32,9 @@ type Config struct {
 	ClickHousePassword string
 
 	// Redpanda (Kafka-compatible)
-	RedpandaBrokers []string
+	RedpandaBrokers      []string
+	RedpandaSASLUser     string
+	RedpandaSASLPassword string
 
 	// Supabase Storage
 	StorageBucket string
@@ -58,7 +60,9 @@ func Load() *Config {
 		ClickHouseUser:     getEnv("CLICKHOUSE_USER", "default"),
 		ClickHousePassword: getEnv("CLICKHOUSE_PASSWORD", ""),
 
-		RedpandaBrokers: strings.Split(getEnv("REDPANDA_BROKERS", "localhost:9092"), ","),
+		RedpandaBrokers:      strings.Split(getEnv("REDPANDA_BROKERS", "localhost:9092"), ","),
+		RedpandaSASLUser:     getEnv("REDPANDA_SASL_USER", ""),
+		RedpandaSASLPassword: getEnv("REDPANDA_SASL_PASSWORD", ""),
 		StorageBucket:   getEnv("STORAGE_BUCKET", "seoxpert"),
 	}
 }

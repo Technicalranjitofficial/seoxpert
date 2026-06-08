@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"os"
 
 	"github.com/twmb/franz-go/pkg/kgo"
+	"github.com/twmb/franz-go/pkg/sasl/scram"
 	"github.com/seoxpert/shared/events"
 )
 
@@ -17,14 +19,21 @@ type Consumer struct {
 }
 
 func New(brokers []string, groupID string, handler func(context.Context, events.AuditJob) error) (*Consumer, error) {
-	cl, err := kgo.NewClient(
+	opts := []kgo.Opt{
 		kgo.SeedBrokers(brokers...),
 		kgo.ConsumerGroup(groupID),
 		kgo.ConsumeTopics(events.TopicAuditRequested),
-		// Commit only after successful processing — no job loss on crash.
 		kgo.DisableAutoCommit(),
 		kgo.BlockRebalanceOnPoll(),
-	)
+	}
+
+	if user := os.Getenv("REDPANDA_SASL_USER"); user != "" {
+		pass := os.Getenv("REDPANDA_SASL_PASSWORD")
+		auth := scram.Auth{User: user, Pass: pass}
+		opts = append(opts, kgo.SASL(auth.AsSha256Mechanism()))
+	}
+
+	cl, err := kgo.NewClient(opts...)
 	if err != nil {
 		return nil, err
 	}

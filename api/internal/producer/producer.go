@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
 
 	"github.com/twmb/franz-go/pkg/kgo"
+	"github.com/twmb/franz-go/pkg/sasl/scram"
 	"github.com/seoxpert/shared/events"
 )
 
@@ -17,17 +19,25 @@ type Producer struct {
 }
 
 func New(brokers []string) (*Producer, error) {
-	cl, err := kgo.NewClient(
+	opts := []kgo.Opt{
 		kgo.SeedBrokers(brokers...),
 		kgo.AllowAutoTopicCreation(),
-		kgo.ProducerBatchMaxBytes(1_000_000), // 1MB max batch
+		kgo.ProducerBatchMaxBytes(1_000_000),
 		kgo.RecordPartitioner(kgo.StickyKeyPartitioner(nil)),
-	)
+	}
+
+	// SASL — only enabled when REDPANDA_SASL_USER is set in env.
+	if user := os.Getenv("REDPANDA_SASL_USER"); user != "" {
+		pass := os.Getenv("REDPANDA_SASL_PASSWORD")
+		auth := scram.Auth{User: user, Pass: pass}
+		opts = append(opts, kgo.SASL(auth.AsSha256Mechanism()))
+	}
+
+	cl, err := kgo.NewClient(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("create kafka client: %w", err)
 	}
 
-	// Verify broker connectivity at startup.
 	if err := cl.Ping(context.Background()); err != nil {
 		cl.Close()
 		return nil, fmt.Errorf("ping redpanda: %w", err)
