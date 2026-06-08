@@ -6,6 +6,8 @@ WORKDIR /build
 # Copy go.work and all module go.mod files first (layer cache)
 COPY go.work go.work.sum* ./
 COPY shared/go.mod shared/go.sum* ./shared/
+COPY api/go.mod api/go.sum* ./api/
+COPY workers/crawler/go.mod workers/crawler/go.sum* ./workers/crawler/
 COPY workers/rank-tracker/go.mod workers/rank-tracker/go.sum* ./workers/rank-tracker/
 
 # Download dependencies for rank-tracker only

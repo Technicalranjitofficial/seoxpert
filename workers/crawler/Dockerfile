@@ -12,6 +12,7 @@ COPY go.work ./
 COPY shared/go.mod shared/go.mod
 COPY api/go.mod api/go.mod
 COPY workers/crawler/go.mod workers/crawler/go.mod
+COPY workers/rank-tracker/go.mod workers/rank-tracker/go.mod
 
 # Download dependencies for the crawler module.
 RUN cd workers/crawler && go mod download

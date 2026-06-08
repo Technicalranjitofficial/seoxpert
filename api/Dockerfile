@@ -13,6 +13,7 @@ COPY go.work ./
 COPY shared/go.mod shared/go.mod
 COPY api/go.mod api/go.mod
 COPY workers/crawler/go.mod workers/crawler/go.mod
+COPY workers/rank-tracker/go.mod workers/rank-tracker/go.mod
 
 # Download dependencies for the api module (uses workspace for replace directives).
 RUN cd api && go mod download
