@@ -74,7 +74,7 @@ export default function AuditSection({
     const json = await res.json().catch(() => null);
     if (!json) return null;
     // API returns { data: audit, issues: [] } — merge into flat object
-    const audit: Audit = { ...(json.data ?? json), issues: json.issues ?? json.data?.issues };
+    const audit: Audit = { ...(json.data ?? json), issues: Array.isArray(json.issues) ? json.issues : (Array.isArray(json.data?.issues) ? json.data.issues : []) };
     return audit;
   }, [supabase]);
 
@@ -262,7 +262,7 @@ function AuditDetail({ audit }: { audit: Audit }) {
     );
   }
 
-  const issues = audit.issues ?? [];
+  const issues = Array.isArray(audit.issues) ? audit.issues : [];
   const critical = issues.filter(i => i.severity === "critical");
   const warnings = issues.filter(i => i.severity === "warning");
   const infos = issues.filter(i => i.severity === "info");
