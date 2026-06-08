@@ -10,7 +10,6 @@ import (
 )
 
 // IPRateLimit limits requests per IP using a Redis sliding counter.
-// limit = max requests per window duration.
 func IPRateLimit(rdb *cache.Client, limit int64, window time.Duration) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		ip := c.IP()
@@ -18,7 +17,6 @@ func IPRateLimit(rdb *cache.Client, limit int64, window time.Duration) fiber.Han
 
 		count, err := rdb.Incr(context.Background(), key, window)
 		if err != nil {
-			// Redis failure — fail open (don't block legitimate users)
 			return c.Next()
 		}
 
@@ -40,11 +38,10 @@ func IPRateLimit(rdb *cache.Client, limit int64, window time.Duration) fiber.Han
 // PlanRateLimit enforces per-user daily audit limits based on their plan.
 // Must be used after RequireAuth (reads "user_id" from locals).
 func PlanRateLimit(rdb *cache.Client) fiber.Handler {
-	// Daily limits per plan
 	limits := map[string]int64{
 		"free":   100,
-		"pro":    500,
-		"agency": 2000,
+		"pro":    1000,
+		"agency": 9999,
 	}
 
 	return func(c fiber.Ctx) error {
@@ -53,8 +50,6 @@ func PlanRateLimit(rdb *cache.Client) fiber.Handler {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 		}
 
-		// Plan is stored in Redis after first auth (set by profile fetch).
-		// Falls back to "free" if not cached yet.
 		planKey := fmt.Sprintf("plan:%s", userID)
 		plan, _ := rdb.Get(context.Background(), planKey)
 		if plan == "" {
@@ -66,7 +61,6 @@ func PlanRateLimit(rdb *cache.Client) fiber.Handler {
 			dailyLimit = 1
 		}
 
-		// Reset at midnight UTC — use date as part of key.
 		today := time.Now().UTC().Format("2006-01-02")
 		counterKey := fmt.Sprintf("rl:audit:%s:%s", userID, today)
 
