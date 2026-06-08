@@ -52,18 +52,29 @@ func (w *Writer) UpdateAuditProgress(ctx context.Context, auditID string, crawle
 func (w *Writer) CompleteAudit(ctx context.Context, auditID string) error {
 	now := time.Now().UTC()
 
-	// Calculate issue counts and derive score.
+	// Score = average per-page score (each page starts at 100, loses points per issue).
+	// critical=-15, warning=-7, info=-2 per page, minimum 0 per page.
+	// Final score = average across all crawled pages, rounded.
 	_, err := w.pool.Exec(ctx, `
-		UPDATE audits a
+		UPDATE audits
 		SET
-			status = 'completed',
+			status      = 'completed',
 			completed_at = $2,
-			issues = (SELECT COUNT(*) FROM audit_issues WHERE audit_id = $1),
-			score = GREATEST(0, 100 - (
-				(SELECT COUNT(*) FROM audit_issues WHERE audit_id = $1 AND severity = 'critical') * 20 +
-				(SELECT COUNT(*) FROM audit_issues WHERE audit_id = $1 AND severity = 'warning') * 8 +
-				(SELECT COUNT(*) FROM audit_issues WHERE audit_id = $1 AND severity = 'info') * 2
-			))
+			issues      = (SELECT COUNT(*) FROM audit_issues WHERE audit_id = $1),
+			score       = COALESCE((
+				SELECT ROUND(AVG(page_score))::int
+				FROM (
+					SELECT GREATEST(0,
+						100
+						- COUNT(*) FILTER (WHERE severity = 'critical') * 15
+						- COUNT(*) FILTER (WHERE severity = 'warning')  * 7
+						- COUNT(*) FILTER (WHERE severity = 'info')     * 2
+					) AS page_score
+					FROM audit_issues
+					WHERE audit_id = $1
+					GROUP BY url
+				) s
+			), 100)
 		WHERE id = $1
 	`, auditID, now)
 
