@@ -6,15 +6,33 @@ export default function EmailForm() {
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
       setError("Please enter a valid email.");
       return;
     }
     setError("");
-    setSubmitted(true);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Something went wrong. Try again.");
+        return;
+      }
+      setSubmitted(true);
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (submitted) {
@@ -43,9 +61,10 @@ export default function EmailForm() {
       </div>
       <button
         type="submit"
-        className="flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-semibold px-6 py-3.5 rounded-xl whitespace-nowrap"
+        disabled={loading}
+        className="flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-semibold px-6 py-3.5 rounded-xl whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed transition-opacity"
       >
-        <Bell size={16} /> Notify Me
+        <Bell size={16} /> {loading ? "Saving…" : "Notify Me"}
       </button>
       <p className="text-gray-600 text-xs mt-3 flex items-center justify-center gap-1.5 sm:hidden">
         <Lock size={11} /> No spam. Early access perks for subscribers.

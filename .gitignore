@@ -30,8 +30,24 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# env files — never commit secrets
+.env
+.env.local
+.env.production
+.env.staging
+
+# Go build artifacts
+/api/seoxpert-api
+/workers/crawler/crawler-worker
+/workers/rank-checker/rank-worker
+/workers/keyword-worker/keyword-worker
+**/vendor/
+
+# Go test cache
+**/*.test
+
+# Go workspace sum (generated, not needed in repo)
+go.work.sum
 
 # vercel
 .vercel
