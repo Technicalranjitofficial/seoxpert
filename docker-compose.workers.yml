@@ -1,13 +1,11 @@
 services:
   # ── Dedicated Redis for SeoXpert ──────────────────────────────────────────
-  # Separate from the shared kiit-redis on :6379 so SeoXpert has its own
-  # keyspace, memory limits, and can be wiped independently.
   seoxpert-redis:
     image: redis:7-alpine
     container_name: seoxpert-redis
     restart: unless-stopped
     ports:
-      - "6380:6379"          # host:6380 → container:6379
+      - "6380:6379"
     command: >
       redis-server
       --save ""
@@ -41,18 +39,12 @@ services:
       APP_ENV: production
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
+    # distroless has no shell/wget - health verified via: curl localhost:8090/health
     deploy:
       resources:
         limits:
-          memory: 256m   # Go binary — very lean
+          memory: 256m
           cpus: "0.5"
-
     depends_on:
       seoxpert-redis:
         condition: service_healthy
@@ -67,20 +59,18 @@ services:
     env_file: .env
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    # chromedp needs /dev/shm for headless Chrome
     shm_size: "1gb"
     deploy:
       resources:
         limits:
-          memory: 3g     # chromedp tabs are the heavy part
+          memory: 3g
           cpus: "1.5"
     depends_on:
-      seoxpert-api:
+      seoxpert-redis:
         condition: service_healthy
 
 volumes:
   seoxpert_redis_data:
 
-# Note: Redpanda, PostgreSQL, ClickHouse are already running
-# on the host — workers connect via host.docker.internal (mapped above).
-# Redis is now a dedicated container on port 6380 (not the shared kiit-redis).
+# Note: Redpanda, PostgreSQL, ClickHouse are already running on the host.
+# Redis is a dedicated seoxpert-redis container on port 6380 (isolated from kiit-redis on 6379).
