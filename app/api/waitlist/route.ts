@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8090";
+// Server-side only — no NEXT_PUBLIC_ prefix needed
+const API_URL = process.env.API_URL ?? "http://localhost:8090";
 
 export async function POST(req: NextRequest) {
   try {

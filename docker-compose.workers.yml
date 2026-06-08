@@ -69,6 +69,33 @@ services:
       seoxpert-redis:
         condition: service_healthy
 
+  # ── Next.js Frontend ─────────────────────────────────────────────────────────
+  seoxpert-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: seoxpert-frontend
+    restart: unless-stopped
+    ports:
+      - "4013:3000"
+    environment:
+      NODE_ENV: production
+      # Internal Docker network URL — reaches the Go API container directly
+      API_URL: http://seoxpert-api:8080
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+    depends_on:
+      seoxpert-redis:
+        condition: service_healthy
+
 volumes:
   seoxpert_redis_data:
 

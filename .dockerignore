@@ -1,0 +1,30 @@
+# Node
+node_modules
+npm-debug.log*
+
+# Next.js build output
+.next
+
+# Go modules (not needed for frontend build)
+api/
+workers/
+shared/
+go.work
+go.work.sum
+
+# Git
+.git
+.gitignore
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+
+# Misc
+*.md
+.DS_Store
