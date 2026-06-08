@@ -83,7 +83,7 @@ services:
       # Internal Docker network URL — reaches the Go API container directly
       API_URL: http://seoxpert-api:8080
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000"]
       interval: 30s
       timeout: 5s
       retries: 3
