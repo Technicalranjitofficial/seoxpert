@@ -82,6 +82,9 @@ services:
       NODE_ENV: production
       # Internal Docker network URL — reaches the Go API container directly
       API_URL: http://seoxpert-api:8080
+      # Supabase public vars — baked into client bundle at build time
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000"]
       interval: 30s
