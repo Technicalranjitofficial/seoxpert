@@ -5,13 +5,6 @@ npm-debug.log*
 # Next.js build output
 .next
 
-# Go modules (not needed for frontend build)
-api/
-workers/
-shared/
-go.work
-go.work.sum
-
 # Git
 .git
 .gitignore
@@ -21,10 +14,5 @@ go.work.sum
 .env.*
 !.env.example
 
-# Docker
-Dockerfile*
-docker-compose*.yml
-
 # Misc
-*.md
 .DS_Store
