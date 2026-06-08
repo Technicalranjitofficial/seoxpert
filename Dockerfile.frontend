@@ -7,11 +7,17 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci --frozen-lockfile
 
+# NEXT_PUBLIC_ vars must be available at build time (baked into JS bundle)
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+
 # Copy all source
 COPY . .
 
 # Build with standalone output (next.config.ts: output: 'standalone')
-# API_URL is server-side only — injected at runtime, not baked into the bundle
+# API_URL is server-side only — injected at runtime via docker-compose environment
 RUN npm run build
 
 # ── Stage 2: Runner ───────────────────────────────────────────────────────────
