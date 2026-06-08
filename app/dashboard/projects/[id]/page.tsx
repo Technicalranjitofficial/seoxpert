@@ -36,9 +36,10 @@ export default async function ProjectDetailPage({
 
   if (!projRes.ok) notFound();
 
-  const project: Project = await projRes.json();
+  const projJson = await projRes.json();
+  const project: Project = projJson.data ?? projJson;
   const auditsData = auditsRes?.ok ? await auditsRes.json().catch(() => ({})) : {};
-  const audits = auditsData.audits ?? [];
+  const audits = auditsData.data ?? auditsData.audits ?? [];
 
   return (
     <div className="max-w-4xl">
