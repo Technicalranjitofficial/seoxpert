@@ -69,6 +69,26 @@ services:
       seoxpert-redis:
         condition: service_healthy
 
+  # ── Rank Tracker Worker ───────────────────────────────────────────────────────
+  rank-tracker:
+    build:
+      context: .
+      dockerfile: workers/rank-tracker/Dockerfile
+    container_name: seoxpert-rank-tracker
+    restart: unless-stopped
+    env_file: .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    shm_size: "512mb"
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "0.5"
+    depends_on:
+      seoxpert-redis:
+        condition: service_healthy
+
   # ── Next.js Frontend ─────────────────────────────────────────────────────────
   seoxpert-frontend:
     build:
