@@ -513,9 +513,29 @@ export default function AuditSection({
           <p className="text-gray-500 text-sm">Run your first audit to see a full SEO report with actionable fixes</p>
         </div>
       ) : (
-        <div className="grid grid-cols-5 gap-5 items-start">
+        <div className="grid grid-cols-7 gap-5 items-start">
 
-          {/* ── Audit History ── */}
+          {/* ── Detail Panel (left, wide) ── */}
+          <div className="col-span-5">
+            {!selected ? (
+              <div className="bg-white/2 border border-white/8 rounded-2xl p-14 text-center flex flex-col items-center gap-4">
+                <div className="w-20 h-20 rounded-3xl bg-white/3 border border-white/8 flex items-center justify-center">
+                  <TrendingUp size={32} className="text-gray-600" />
+                </div>
+                <div>
+                  <p className="text-white font-semibold">Select an audit</p>
+                  <p className="text-gray-500 text-sm mt-1">Click any audit from the history to see the full report with fixes</p>
+                </div>
+              </div>
+            ) : (
+              <AuditDetail
+                audit={selected} filter={filter} setFilter={setFilter}
+                tab={tab} setTab={setTab}
+              />
+            )}
+          </div>
+
+          {/* ── Audit History (right sidebar) ── */}
           <div className="col-span-2 space-y-2">
             <p className="text-gray-500 text-[11px] font-bold uppercase tracking-widest mb-3">Audit History</p>
             {audits.map(a => {
@@ -583,25 +603,6 @@ export default function AuditSection({
             })}
           </div>
 
-          {/* ── Detail Panel ── */}
-          <div className="col-span-3">
-            {!selected ? (
-              <div className="bg-white/2 border border-white/8 rounded-2xl p-14 text-center flex flex-col items-center gap-4">
-                <div className="w-20 h-20 rounded-3xl bg-white/3 border border-white/8 flex items-center justify-center">
-                  <TrendingUp size={32} className="text-gray-600" />
-                </div>
-                <div>
-                  <p className="text-white font-semibold">Select an audit</p>
-                  <p className="text-gray-500 text-sm mt-1">Click any audit from the history to see the full report with fixes</p>
-                </div>
-              </div>
-            ) : (
-              <AuditDetail
-                audit={selected} filter={filter} setFilter={setFilter}
-                tab={tab} setTab={setTab}
-              />
-            )}
-          </div>
         </div>
       )}
     </div>
