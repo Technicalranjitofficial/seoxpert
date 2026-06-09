@@ -87,7 +87,7 @@ func main() {
 			if crawled < maxPages {
 				for _, link := range result.Links {
 					norm := engine.NormaliseURL(link)
-					if !visited[norm] && len(visited) < maxPages {
+					if !visited[norm] && len(visited) < maxPages && !isSkippedURL(norm) {
 						visited[norm] = true
 						queue = append(queue, norm)
 					}
@@ -128,6 +128,27 @@ func main() {
 	slog.Info("crawler worker ready, consuming from", "topic", events.TopicAuditRequested)
 	c.Run(ctx)
 	slog.Info("crawler worker stopped")
+}
+
+// ── URL skip list — auth/protected/irrelevant paths that will always timeout ──
+
+// isSkippedURL returns true for pages that are login-protected or non-content,
+// to avoid wasting the 20s timeout on them.
+func isSkippedURL(u string) bool {
+	skipSegments := []string{
+		"/auth", "/login", "/signin", "/signup", "/register", "/logout",
+		"/dashboard", "/account", "/settings", "/profile", "/admin",
+		"/checkout", "/cart", "/order", "/payment", "/billing",
+		"/api/", "/oauth", "/callback", "/verify", "/reset-password",
+		"/sgpa", "/resume", "/rewards", "/refund",
+	}
+	lower := strings.ToLower(u)
+	for _, s := range skipSegments {
+		if strings.Contains(lower, s) {
+			return true
+		}
+	}
+	return false
 }
 
 // ── robots.txt check ─────────────────────────────────────────────────────────

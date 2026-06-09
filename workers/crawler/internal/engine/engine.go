@@ -210,14 +210,14 @@ func (e *Engine) CrawlPage(ctx context.Context, auditID, pageURL string) (*PageR
 		chromedp.AttributeValue(`link[rel="canonical"]`, "href", &sig.canonical, nil),
 		chromedp.AttributeValue(`meta[name="robots"]`, "content", &sig.robotsMeta, nil),
 		chromedp.AttributeValue(`html`, "lang", &sig.langAttr, nil),
-		chromedp.Evaluate(`Array.from(document.querySelectorAll('h1')).map(el => el.innerText.trim())`, &sig.h1s),
-		chromedp.Evaluate(`Array.from(document.querySelectorAll('h2')).map(el => el.innerText.trim().slice(0,200))`, &sig.h2s),
+		chromedp.Evaluate(`Array.from(document.querySelectorAll('h1')).map(el => (el.innerText||el.textContent||'').trim())`, &sig.h1s),
+		chromedp.Evaluate(`Array.from(document.querySelectorAll('h2')).map(el => (el.innerText||el.textContent||'').trim().slice(0,200))`, &sig.h2s),
 		chromedp.Evaluate(`!!document.querySelector('meta[property="og:title"]')`, &sig.hasOGTitle),
 		chromedp.Evaluate(`!!document.querySelector('meta[property="og:description"]')`, &sig.hasOGDesc),
 		chromedp.Evaluate(`!!document.querySelector('meta[property="og:image"]')`, &sig.hasOGImage),
 		chromedp.Evaluate(`!!document.querySelector('meta[name="twitter:card"]')`, &sig.hasTwitter),
 		chromedp.Evaluate(`!!document.querySelector('script[type="application/ld+json"]')`, &sig.hasSchema),
-		chromedp.Evaluate(`document.body.innerText.slice(0, 10000)`, &sig.bodyText),
+		chromedp.Evaluate(`(document.body ? (document.body.innerText||document.body.textContent||'') : '').slice(0, 10000)`, &sig.bodyText),
 
 		// ── Composite: Link analysis ──────────────────────────────────────
 		chromedp.Evaluate(`JSON.stringify((() => {
@@ -286,7 +286,7 @@ func (e *Engine) CrawlPage(ctx context.Context, auditID, pageURL string) (*PageR
 				mixedContent: [...document.querySelectorAll('img[src],script[src]')].filter(e =>
 					(e.src||'').startsWith('http:')
 				).length,
-				loremIpsum: document.body.innerText.toLowerCase().includes('lorem ipsum'),
+				loremIpsum: !!(document.body && (document.body.innerText || document.body.textContent || '').toLowerCase().includes('lorem ipsum')),
 				metaRefresh: !!document.querySelector('meta[http-equiv="refresh"]'),
 				metaKeywords: document.querySelector('meta[name="keywords"]')?.content || '',
 				formNoLabel: [...document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"])')].filter(i =>
@@ -365,8 +365,8 @@ func (e *Engine) CrawlPage(ctx context.Context, auditID, pageURL string) (*PageR
 			const avgSentenceWords = totalSentences > 0 ? totalWords / totalSentences : 0;
 
 			// Keyword density: use H1 as proxy for primary keyword
-			const h1 = (document.querySelector('h1')?.innerText || '').trim().toLowerCase();
-			const bodyText = document.body.innerText.toLowerCase();
+			const h1 = (document.querySelector('h1')?.innerText || document.querySelector('h1')?.textContent || '').trim().toLowerCase();
+			const bodyText = (document.body ? (document.body.innerText || document.body.textContent || '') : '').toLowerCase();
 			const bodyWords = bodyText.split(/\s+/).filter(Boolean);
 			let keywordDensityPct = 0;
 			if (h1 && h1.split(/\s+/).length >= 2 && bodyWords.length > 50) {

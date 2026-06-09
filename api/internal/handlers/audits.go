@@ -40,7 +40,20 @@ func (h *Handler) TriggerAudit(c fiber.Ctx) error {
 	if plan == "" {
 		plan = "free"
 	}
-	maxPages := models.Limits[models.Plan(plan)].MaxPagesPerAudit
+	// Cap at 30 pages — single Chrome instance can't handle more without OOM
+	maxPages := 30
+
+	// Block concurrent audits — one running/pending audit per user at a time
+	var activeCount int
+	_ = h.pool.QueryRow(ctx, `
+		SELECT COUNT(*) FROM audits
+		WHERE user_id = $1 AND status IN ('pending', 'running')
+	`, userID).Scan(&activeCount)
+	if activeCount > 0 {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+			"error": "An audit is already running. Please wait for it to complete before starting a new one.",
+		})
+	}
 
 	// Persist audit row in pending state.
 	var audit models.Audit
