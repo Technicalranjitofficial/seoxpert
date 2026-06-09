@@ -21,7 +21,7 @@ import (
 	"github.com/seoxpert/workers/crawler/internal/writer"
 )
 
-const maxPages = 50 // max pages to crawl per audit
+const maxPages = 30 // max pages to crawl per audit
 
 func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
@@ -83,13 +83,9 @@ func main() {
 				slog.Error("save page result", "url", pageURL, "err", err)
 			}
 
-			// Discover links from this page and add unvisited ones to queue
+			// Use links already discovered during CrawlPage (no extra navigation)
 			if crawled < maxPages {
-				links, err := eng.DiscoverLinks(ctx, pageURL, job.Domain)
-				if err != nil {
-					slog.Warn("link discovery failed", "url", pageURL, "err", err)
-				}
-				for _, link := range links {
+				for _, link := range result.Links {
 					norm := engine.NormaliseURL(link)
 					if !visited[norm] && len(visited) < maxPages {
 						visited[norm] = true

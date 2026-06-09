@@ -26,6 +26,7 @@ type PageResult struct {
 	Issues  []models.AuditIssue
 	Score   int
 	CrawlMs int64
+	Links   []string // discovered internal links for BFS
 }
 
 // ─── Signal types for JSON evaluations ───────────────────────────────────────
@@ -179,61 +180,13 @@ func NormaliseURL(rawURL string) string {
 	return u.String()
 }
 
-// DiscoverLinks extracts all internal links on a page (for multi-page crawl).
-func (e *Engine) DiscoverLinks(ctx context.Context, pageURL, domain string) ([]string, error) {
-	tabCtx, cancel := chromedp.NewContext(e.allocCtx)
-	defer cancel()
-	tabCtx, tCancel := context.WithTimeout(tabCtx, 25*time.Second)
-	defer tCancel()
-
-	var rawLinks []string
-	err := chromedp.Run(tabCtx,
-		chromedp.Navigate(pageURL),
-		chromedp.WaitReady("body"),
-		chromedp.Evaluate(`
-			Array.from(new Set(
-				Array.from(document.querySelectorAll('a[href]'))
-					.map(a => a.href)
-					.filter(h => h.startsWith('http'))
-			))
-		`, &rawLinks),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	var internal []string
-	for _, link := range rawLinks {
-		u, err := url.Parse(link)
-		if err != nil {
-			continue
-		}
-		if strings.TrimPrefix(u.Hostname(), "www.") == strings.TrimPrefix(domain, "www.") {
-			u.RawQuery = ""
-			u.Fragment = ""
-			if len(u.Path) > 1 {
-				u.Path = strings.TrimRight(u.Path, "/")
-			}
-			clean := u.String()
-			ext := strings.ToLower(u.Path)
-			if strings.HasSuffix(ext, ".pdf") || strings.HasSuffix(ext, ".jpg") ||
-				strings.HasSuffix(ext, ".png") || strings.HasSuffix(ext, ".css") ||
-				strings.HasSuffix(ext, ".js") || strings.HasSuffix(ext, ".xml") {
-				continue
-			}
-			internal = append(internal, clean)
-		}
-	}
-	return internal, nil
-}
-
 // CrawlPage runs all SEO checks on a single URL and returns issues.
 func (e *Engine) CrawlPage(ctx context.Context, auditID, pageURL string) (*PageResult, error) {
 	start := time.Now()
 
 	tabCtx, cancel := chromedp.NewContext(e.allocCtx)
 	defer cancel()
-	tabCtx, tCancel := context.WithTimeout(tabCtx, 35*time.Second)
+	tabCtx, tCancel := context.WithTimeout(tabCtx, 20*time.Second)
 	defer tCancel()
 
 	var sig pageSignals
@@ -449,6 +402,27 @@ func (e *Engine) CrawlPage(ctx context.Context, auditID, pageURL string) (*PageR
 		return nil, fmt.Errorf("chromedp navigate %s: %w", pageURL, err)
 	}
 
+	// Extract internal links in the SAME tab (no second navigation needed)
+	var rawInternalLinks []string
+	_ = chromedp.Run(tabCtx, chromedp.Evaluate(`
+		(function(){
+			var host = location.hostname.replace(/^www\./,'');
+			var seen = {};
+			var out = [];
+			document.querySelectorAll('a[href]').forEach(function(a){
+				var h = a.href;
+				if (!h || !h.startsWith('http')) return;
+				var ah = a.hostname.replace(/^www\./,'');
+				if (ah !== host) return;
+				var ext = h.split('?')[0].split('#')[0];
+				if (/\.(pdf|jpg|jpeg|png|gif|css|js|xml|svg|ico|woff|woff2|ttf)$/i.test(ext)) return;
+				ext = ext.replace(/\/$/,'');
+				if (!seen[ext]) { seen[ext]=1; out.push(ext); }
+			});
+			return out;
+		})()
+	`, &rawInternalLinks))
+
 	// ── Parse derived fields ──────────────────────────────────────────────────
 	sig.titleLen    = len([]rune(strings.TrimSpace(sig.title)))
 	sig.metaDescLen = len([]rune(strings.TrimSpace(sig.metaDesc)))
@@ -465,7 +439,7 @@ func (e *Engine) CrawlPage(ctx context.Context, auditID, pageURL string) (*PageR
 	_ = json.Unmarshal([]byte(advancedJSON), &sig.advanced)
 
 	// ── Run all checks ────────────────────────────────────────────────────────
-	result := &PageResult{URL: pageURL, CrawlMs: time.Since(start).Milliseconds()}
+	result := &PageResult{URL: pageURL, CrawlMs: time.Since(start).Milliseconds(), Links: rawInternalLinks}
 
 	checks := []func() *models.AuditIssue{
 		// ── Title (6 checks) ──────────────────────────────────────────────
