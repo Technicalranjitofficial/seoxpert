@@ -199,7 +199,15 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-white/5 px-6 py-8 text-center text-gray-600 text-sm">
+      <footer className="border-t border-white/5 px-6 py-10 text-center text-gray-600 text-sm">
+        <div className="flex justify-center gap-8 mb-4 text-gray-500 text-sm flex-wrap">
+          <a href="/about" className="hover:text-gray-300 transition-colors">About</a>
+          <a href="/blog" className="hover:text-gray-300 transition-colors">Blog</a>
+          <a href="/tools" className="hover:text-gray-300 transition-colors">Free SEO Tools</a>
+          <a href="/contact" className="hover:text-gray-300 transition-colors">Contact</a>
+          <a href="/privacy-policy" className="hover:text-gray-300 transition-colors">Privacy Policy</a>
+          <a href="/terms" className="hover:text-gray-300 transition-colors">Terms of Service</a>
+        </div>
         <p>© {new Date().getFullYear()} SeoXpert. All rights reserved.</p>
         <p className="mt-1 text-xs">SEO platform · Keyword research · Technical audit · Rank tracking · Backlink analysis · AI SEO tools</p>
       </footer>
