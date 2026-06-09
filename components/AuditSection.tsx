@@ -34,6 +34,132 @@ interface Audit {
   completed_at?: string;
 }
 
+// ── All 61 check types grouped by category ──────────────────
+const CHECK_CATEGORIES: { label: string; icon: string; checks: { type: string; title: string }[] }[] = [
+  {
+    label: "Title",
+    icon: "T",
+    checks: [
+      { type: "missing_title",        title: "Page title present" },
+      { type: "title_too_short",       title: "Title length adequate" },
+      { type: "title_too_long",        title: "Title not truncated in Google" },
+      { type: "title_all_caps",        title: "Title not ALL CAPS" },
+      { type: "title_starts_stopword", title: "Title starts with keyword" },
+      { type: "title_same_as_meta_desc", title: "Title differs from meta description" },
+    ],
+  },
+  {
+    label: "Meta",
+    icon: "M",
+    checks: [
+      { type: "missing_meta_desc",    title: "Meta description present" },
+      { type: "meta_desc_too_short",  title: "Meta description long enough" },
+      { type: "meta_desc_too_long",   title: "Meta description not truncated" },
+      { type: "meta_keywords_present", title: "No outdated meta keywords" },
+      { type: "meta_keywords_spam",   title: "No keyword spam in meta" },
+    ],
+  },
+  {
+    label: "Headings",
+    icon: "H",
+    checks: [
+      { type: "missing_h1",              title: "H1 heading present" },
+      { type: "multiple_h1",             title: "Only one H1 on page" },
+      { type: "h1_too_long",             title: "H1 length acceptable" },
+      { type: "h1_too_short",            title: "H1 descriptive enough" },
+      { type: "no_h2_headings",          title: "H2 subheadings present" },
+      { type: "empty_headings",          title: "No empty headings" },
+      { type: "heading_hierarchy_broken", title: "Heading hierarchy intact" },
+      { type: "too_many_h2",             title: "H2 count reasonable" },
+    ],
+  },
+  {
+    label: "Content",
+    icon: "C",
+    checks: [
+      { type: "thin_content",           title: "Sufficient content" },
+      { type: "low_word_count",         title: "Word count adequate" },
+      { type: "title_h1_duplicate",     title: "Title and H1 are different" },
+      { type: "no_internal_links",      title: "Internal links present" },
+      { type: "too_many_external_links", title: "External link count reasonable" },
+      { type: "generic_anchor_text",    title: "Descriptive anchor text used" },
+      { type: "empty_anchor_links",     title: "No empty link anchors" },
+      { type: "lorem_ipsum_content",    title: "No placeholder text" },
+    ],
+  },
+  {
+    label: "Images",
+    icon: "I",
+    checks: [
+      { type: "images_missing_alt",  title: "All images have alt text" },
+      { type: "img_alt_too_long",    title: "Alt text not too long" },
+      { type: "img_alt_is_filename", title: "Alt text is descriptive" },
+      { type: "img_no_dimensions",   title: "Images have width/height" },
+      { type: "img_no_lazy_loading", title: "Lazy loading enabled" },
+      { type: "img_not_webp",        title: "Images in modern format" },
+    ],
+  },
+  {
+    label: "Technical",
+    icon: "⚙",
+    checks: [
+      { type: "missing_viewport",       title: "Viewport meta tag present" },
+      { type: "viewport_zoom_disabled", title: "User zoom not disabled" },
+      { type: "slow_page_load",         title: "Page loads under 3s" },
+      { type: "very_slow_page_load",    title: "Page loads under 5s" },
+      { type: "missing_lang",           title: "Language attribute set" },
+      { type: "missing_canonical",      title: "Canonical URL present" },
+      { type: "invalid_canonical",      title: "Canonical URL is valid" },
+      { type: "noindex_page",           title: "Page is indexable" },
+      { type: "robots_nofollow",        title: "Links are followed" },
+      { type: "no_https",               title: "Page served over HTTPS" },
+      { type: "missing_favicon",        title: "Favicon present" },
+      { type: "missing_charset",        title: "Charset declared" },
+      { type: "deprecated_html_tags",   title: "No deprecated HTML tags" },
+      { type: "large_dom_size",         title: "DOM size reasonable" },
+      { type: "too_many_scripts",       title: "Script count reasonable" },
+      { type: "render_blocking_scripts", title: "No render-blocking scripts" },
+      { type: "too_many_stylesheets",   title: "Stylesheet count reasonable" },
+      { type: "iframe_no_title",        title: "iframes have titles" },
+      { type: "mixed_content",          title: "No mixed HTTP/HTTPS content" },
+      { type: "table_layout_usage",     title: "Tables used for data, not layout" },
+      { type: "meta_refresh_redirect",  title: "No meta refresh redirects" },
+    ],
+  },
+  {
+    label: "Forms & A11y",
+    icon: "♿",
+    checks: [
+      { type: "form_inputs_no_label",   title: "All form inputs labelled" },
+      { type: "form_http_action",       title: "Forms submit over HTTPS" },
+      { type: "excessive_inline_styles", title: "Minimal inline styles" },
+      { type: "many_inline_styles",     title: "Inline styles not excessive" },
+    ],
+  },
+  {
+    label: "Links",
+    icon: "🔗",
+    checks: [
+      { type: "nofollow_internal_links", title: "Internal links are followed" },
+      { type: "http_links_on_https",     title: "All outbound links are HTTPS" },
+    ],
+  },
+  {
+    label: "Social & Schema",
+    icon: "S",
+    checks: [
+      { type: "missing_og_tags",       title: "Open Graph tags present" },
+      { type: "incomplete_og_tags",    title: "Open Graph tags complete" },
+      { type: "missing_twitter_card",  title: "Twitter card tag present" },
+      { type: "og_type_missing",       title: "og:type declared" },
+      { type: "og_site_name_missing",  title: "og:site_name declared" },
+      { type: "og_url_mismatch",       title: "og:url matches canonical" },
+      { type: "no_structured_data",    title: "JSON-LD structured data present" },
+      { type: "no_sitemap_link",       title: "Sitemap link in <head>" },
+    ],
+  },
+];
+
 function timeAgo(date: string) {
   const s = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
   if (s < 60) return "just now";
@@ -45,9 +171,9 @@ function timeAgo(date: string) {
 function grade(score: number) {
   if (score >= 90) return { letter: "A", label: "Excellent", color: "text-emerald-400", bg: "bg-emerald-500/15 border-emerald-500/30" };
   if (score >= 75) return { letter: "B", label: "Good",      color: "text-green-400",   bg: "bg-green-500/15 border-green-500/30"   };
-  if (score >= 60) return { letter: "C", label: "Fair",      color: "text-yellow-400",  bg: "bg-yellow-500/15 border-yellow-500/30"  };
-  if (score >= 40) return { letter: "D", label: "Poor",      color: "text-orange-400",  bg: "bg-orange-500/15 border-orange-500/30"  };
-  return                  { letter: "F", label: "Critical",  color: "text-red-400",     bg: "bg-red-500/15 border-red-500/30"        };
+  if (score >= 60) return { letter: "C", label: "Fair",      color: "text-yellow-400",  bg: "bg-yellow-500/15 border-yellow-500/30" };
+  if (score >= 40) return { letter: "D", label: "Poor",      color: "text-orange-400",  bg: "bg-orange-500/15 border-orange-500/30" };
+  return                  { letter: "F", label: "Critical",  color: "text-red-400",     bg: "bg-red-500/15 border-red-500/30"       };
 }
 
 function ringStroke(score: number) {
@@ -112,7 +238,6 @@ function IssueCard({ issue, defaultOpen = false }: { issue: AuditIssue; defaultO
   const m = SEV[issue.severity];
   return (
     <div className={`rounded-2xl border overflow-hidden ${m.bg}`}>
-      {/* clickable header */}
       <button
         className={`w-full text-left px-5 py-4 flex items-start gap-3.5 transition-colors ${open ? m.header : "hover:bg-white/2"}`}
         onClick={() => setOpen(v => !v)}
@@ -135,22 +260,18 @@ function IssueCard({ issue, defaultOpen = false }: { issue: AuditIssue; defaultO
         </span>
       </button>
 
-      {/* expanded body */}
       {open && (
         <div className="px-5 pb-5 pt-3 space-y-4 border-t border-white/5">
-
-          {/* What's wrong */}
           <div className="flex gap-3">
             <div className="shrink-0 w-5 h-5 mt-0.5 rounded-md bg-white/5 flex items-center justify-center">
               <AlertTriangle size={11} className="text-gray-500" />
             </div>
             <div>
-              <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">What&apos;s Wrong</p>
+              <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">What's Wrong</p>
               <p className="text-gray-200 text-sm leading-relaxed">{issue.description}</p>
             </div>
           </div>
 
-          {/* Detected value — the actual content that triggered the issue */}
           {issue.value && (
             <div>
               <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1.5">Detected Value</p>
@@ -160,7 +281,6 @@ function IssueCard({ issue, defaultOpen = false }: { issue: AuditIssue; defaultO
             </div>
           )}
 
-          {/* How to fix */}
           {issue.suggestion && (
             <div className={`rounded-xl border p-4 ${m.fixBg}`}>
               <div className="flex items-center gap-2 mb-2.5">
@@ -171,17 +291,91 @@ function IssueCard({ issue, defaultOpen = false }: { issue: AuditIssue; defaultO
             </div>
           )}
 
-          {/* Affected URL */}
-          <a
-            href={issue.url} target="_blank" rel="noreferrer"
-            className="flex items-center gap-2 text-xs font-mono text-gray-500 hover:text-indigo-400 transition-colors"
-          >
+          <a href={issue.url} target="_blank" rel="noreferrer"
+            className="flex items-center gap-2 text-xs font-mono text-gray-500 hover:text-indigo-400 transition-colors">
             <Globe size={11} className="shrink-0" />
             <span className="truncate">{issue.url}</span>
             <ExternalLink size={10} className="shrink-0" />
           </a>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Passing check pill ────────────────────────────────────────
+function PassCheck({ title }: { title: string }) {
+  return (
+    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-500/6 border border-emerald-500/15">
+      <CheckCircle size={12} className="text-emerald-400 shrink-0" />
+      <span className="text-emerald-300/80 text-xs font-medium">{title}</span>
+    </div>
+  );
+}
+
+// ── Checks Overview tab ───────────────────────────────────────
+function ChecksOverview({ issues }: { issues: AuditIssue[] }) {
+  const failedTypes = new Set(issues.map(i => i.check_type));
+
+  // For each category compute pass/fail split
+  return (
+    <div className="space-y-4">
+      {CHECK_CATEGORIES.map(cat => {
+        const failing = cat.checks.filter(c => failedTypes.has(c.type));
+        const passing = cat.checks.filter(c => !failedTypes.has(c.type));
+        const allPassed = failing.length === 0;
+
+        return (
+          <div key={cat.label} className="bg-white/2 border border-white/8 rounded-2xl overflow-hidden">
+            {/* Category header */}
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-white/5 bg-white/2">
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold border ${
+                allPassed
+                  ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                  : "bg-white/5 border-white/10 text-gray-400"
+              }`}>
+                {cat.icon}
+              </div>
+              <p className="text-white text-sm font-semibold flex-1">{cat.label}</p>
+              <div className="flex items-center gap-2">
+                {failing.length > 0 && (
+                  <span className="text-[10px] font-bold text-red-400 bg-red-500/10 border border-red-500/20 rounded-full px-2 py-0.5">
+                    {failing.length} issue{failing.length > 1 ? "s" : ""}
+                  </span>
+                )}
+                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-2 py-0.5">
+                  {passing.length} passed
+                </span>
+              </div>
+            </div>
+
+            <div className="p-4 space-y-3">
+              {/* Failing checks first */}
+              {failing.length > 0 && (
+                <div className="space-y-2">
+                  {failing.map(c => {
+                    // Find the worst issue for this check type
+                    const iss = issues
+                      .filter(i => i.check_type === c.type)
+                      .sort((a, b) => {
+                        const order = { critical: 0, warning: 1, info: 2 };
+                        return order[a.severity] - order[b.severity];
+                      })[0];
+                    return iss ? <IssueCard key={c.type} issue={iss} /> : null;
+                  })}
+                </div>
+              )}
+
+              {/* Passing checks */}
+              {passing.length > 0 && (
+                <div className="grid grid-cols-2 gap-2">
+                  {passing.map(c => <PassCheck key={c.type} title={c.title} />)}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -195,12 +389,13 @@ export default function AuditSection({
   initialAudits: Audit[];
 }) {
   const supabase = createClient();
-  const [audits, setAudits]     = useState<Audit[]>(initialAudits);
-  const [selected, setSelected] = useState<Audit | null>(null);
+  const [audits, setAudits]       = useState<Audit[]>(initialAudits);
+  const [selected, setSelected]   = useState<Audit | null>(null);
   const [triggering, setTriggering] = useState(false);
-  const [error, setError]       = useState("");
+  const [error, setError]         = useState("");
   const [pollingId, setPollingId] = useState<string | null>(null);
-  const [filter, setFilter]     = useState<"all" | "critical" | "warning" | "info">("all");
+  const [filter, setFilter]       = useState<"all" | "critical" | "warning" | "info">("all");
+  const [tab, setTab]             = useState<"issues" | "checks">("issues");
 
   const fetchAudit = useCallback(async (id: string): Promise<Audit | null> => {
     const session = (await supabase.auth.getSession()).data.session;
@@ -239,16 +434,13 @@ export default function AuditSection({
     const data = await res.json().catch(() => ({}));
     if (!res.ok) { setError(data.error ?? "Failed to trigger audit."); setTriggering(false); return; }
     const auditId = data.data?.id ?? data.id;
-    const neu: Audit = {
-      id: auditId, project_id: project.id, status: "pending",
-      created_at: new Date().toISOString(),
-    };
+    const neu: Audit = { id: auditId, project_id: project.id, status: "pending", created_at: new Date().toISOString() };
     setAudits(prev => [neu, ...prev]);
     setSelected(neu); setPollingId(auditId); setTriggering(false);
   };
 
   const openAudit = async (audit: Audit) => {
-    setSelected(audit); setFilter("all");
+    setSelected(audit); setFilter("all"); setTab("issues");
     if (audit.status === "completed" && !Array.isArray(audit.issues)) {
       const full = await fetchAudit(audit.id);
       if (full) { setSelected(full); setAudits(prev => prev.map(a => a.id === audit.id ? full : a)); }
@@ -272,7 +464,7 @@ export default function AuditSection({
             </div>
             <div>
               <p className="text-white font-bold text-lg leading-tight">Run SEO Audit</p>
-              <p className="text-gray-400 text-sm mt-0.5">Scans up to 50 pages · 18+ checks · Actionable fix guide</p>
+              <p className="text-gray-400 text-sm mt-0.5">Scans up to 50 pages · 61 checks · Actionable fix guide</p>
             </div>
           </div>
           <button
@@ -321,7 +513,6 @@ export default function AuditSection({
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    {/* Score square or status icon */}
                     <div className="shrink-0">
                       {s != null ? (
                         <div className={`w-12 h-12 rounded-xl border flex flex-col items-center justify-center ${g?.bg}`}>
@@ -384,7 +575,10 @@ export default function AuditSection({
                 </div>
               </div>
             ) : (
-              <AuditDetail audit={selected} filter={filter} setFilter={setFilter} />
+              <AuditDetail
+                audit={selected} filter={filter} setFilter={setFilter}
+                tab={tab} setTab={setTab}
+              />
             )}
           </div>
         </div>
@@ -395,13 +589,14 @@ export default function AuditSection({
 
 /* ─── AUDIT DETAIL PANEL ──────────────────────────────────── */
 function AuditDetail({
-  audit, filter, setFilter,
+  audit, filter, setFilter, tab, setTab,
 }: {
   audit: Audit;
   filter: "all" | "critical" | "warning" | "info";
   setFilter: (f: "all" | "critical" | "warning" | "info") => void;
+  tab: "issues" | "checks";
+  setTab: (t: "issues" | "checks") => void;
 }) {
-  /* ── Running / pending state ── */
   if (audit.status === "pending" || audit.status === "running") {
     const pct = audit.crawled_pages != null
       ? Math.min(100, ((audit.crawled_pages ?? 0) / (audit.total_pages || 50)) * 100) : 0;
@@ -416,9 +611,7 @@ function AuditDetail({
         <div>
           <p className="text-white font-bold text-xl">Audit in Progress</p>
           <p className="text-gray-400 text-sm mt-1.5">
-            {audit.crawled_pages
-              ? `Crawled ${audit.crawled_pages} of ${audit.total_pages ?? "?"} pages`
-              : "Starting crawler…"}
+            {audit.crawled_pages ? `Crawled ${audit.crawled_pages} of ${audit.total_pages ?? "?"} pages` : "Starting crawler…"}
           </p>
         </div>
         {audit.crawled_pages != null && (
@@ -438,7 +631,6 @@ function AuditDetail({
     );
   }
 
-  /* ── Failed state ── */
   if (audit.status === "failed") {
     return (
       <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-12 text-center flex flex-col items-center gap-4">
@@ -453,13 +645,17 @@ function AuditDetail({
     );
   }
 
-  /* ── Completed state ── */
   const all: AuditIssue[] = Array.isArray(audit.issues) ? audit.issues : [];
   const critical = all.filter(i => i.severity === "critical");
   const warnings = all.filter(i => i.severity === "warning");
   const infos    = all.filter(i => i.severity === "info");
   const score    = audit.score ?? 0;
   const g        = grade(score);
+
+  // Total unique check types that exist (61 total across all pages)
+  const totalChecks = CHECK_CATEGORIES.reduce((s, c) => s + c.checks.length, 0);
+  const failedTypes = new Set(all.map(i => i.check_type));
+  const passedCount = totalChecks - failedTypes.size;
 
   const visible =
     filter === "all"      ? all :
@@ -494,29 +690,31 @@ function AuditDetail({
                "Severe SEO problems detected. Immediate action needed to rank."}
             </p>
 
-            {/* Issue count chips */}
-            <div className="grid grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-4 gap-2">
               {([
-                ["critical", "Critical",    critical.length, "Fix immediately — directly harm rankings"],
-                ["warning",  "Warnings",    warnings.length, "Should fix — they affect SEO performance"],
-                ["info",     "Suggestions", infos.length,    "Nice-to-have — best practice improvements"],
-              ] as const).map(([sev, label, count, tip]) => (
+                ["critical", "Critical",    critical.length, "Fix immediately"],
+                ["warning",  "Warnings",    warnings.length, "Should fix"],
+                ["info",     "Suggestions", infos.length,    "Nice-to-have"],
+              ] as const).map(([sev, label, count]) => (
                 <button key={sev} onClick={() => setFilter(filter === sev ? "all" : sev)}
-                  title={tip}
-                  className={`rounded-xl border p-3 text-left transition-all ${
+                  className={`rounded-xl border p-2.5 text-left transition-all ${
                     filter === sev
                       ? SEV[sev].bg + " scale-[1.04] shadow-lg"
                       : "bg-white/3 border-white/8 hover:border-white/18"
                   }`}
                 >
-                  <p className={`text-2xl font-black ${SEV[sev].color}`}>{count}</p>
-                  <p className="text-gray-500 text-xs mt-0.5 font-medium">{label}</p>
+                  <p className={`text-xl font-black ${SEV[sev].color}`}>{count}</p>
+                  <p className="text-gray-500 text-[10px] mt-0.5 font-medium">{label}</p>
                 </button>
               ))}
+              {/* Passed chip */}
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/6 p-2.5">
+                <p className="text-xl font-black text-emerald-400">{passedCount}</p>
+                <p className="text-gray-500 text-[10px] mt-0.5 font-medium">Passed</p>
+              </div>
             </div>
           </div>
 
-          {/* Right meta */}
           <div className="text-right shrink-0 space-y-3">
             {audit.crawled_pages != null && (
               <div>
@@ -534,13 +732,12 @@ function AuditDetail({
           </div>
         </div>
 
-        {/* Status banner */}
         {critical.length > 0 && (
           <div className="mt-5 flex items-start gap-3 bg-red-500/8 border border-red-500/20 rounded-xl px-4 py-3.5">
             <AlertTriangle size={15} className="text-red-400 mt-0.5 shrink-0" />
             <div>
               <p className="text-red-200 text-sm font-semibold">
-                {critical.length} critical issue{critical.length > 1 ? "s" : ""} need{critical.length === 1 ? "s" : ""} immediate attention
+                {critical.length} critical issue{critical.length > 1 ? "s" : ""} need immediate attention
               </p>
               <p className="text-red-400/70 text-xs mt-0.5">
                 Fixing these will have the biggest positive impact on your search rankings.
@@ -552,104 +749,131 @@ function AuditDetail({
           <div className="mt-5 flex items-center gap-3 bg-emerald-500/8 border border-emerald-500/20 rounded-xl px-4 py-3">
             <CheckCircle size={15} className="text-emerald-400 shrink-0" />
             <p className="text-emerald-200 text-sm">
-              No critical issues — great work! Address the warnings and suggestions below to push higher.
+              No critical issues — great work! Address the warnings and suggestions to push higher.
             </p>
           </div>
         )}
       </div>
 
-      {/* ── Priority Fixes: top criticals callout ── */}
-      {critical.length > 0 && filter === "all" && (
-        <div className="bg-white/2 border border-red-500/20 rounded-2xl overflow-hidden">
-          <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-red-500/15 bg-red-500/5">
-            <Zap size={14} className="text-red-400" />
-            <p className="text-red-200 text-sm font-bold">Fix These First</p>
-            <span className="text-red-400/50 text-xs ml-1">— highest impact on rankings</span>
-            <span className="ml-auto text-red-400/60 text-xs">{critical.length} critical issue{critical.length !== 1 ? "s" : ""}</span>
-          </div>
-          <div className="p-4 space-y-3">
-            {critical.slice(0, 3).map(i => (
-              <IssueCard key={i.id} issue={i} defaultOpen={critical.length <= 2} />
-            ))}
-            {critical.length > 3 && (
-              <button
-                onClick={() => setFilter("critical")}
-                className="w-full text-center text-xs text-gray-500 hover:text-red-400 transition-colors py-2.5 border border-white/5 hover:border-red-500/20 rounded-xl"
-              >
-                View all {critical.length} critical issues →
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+      {/* ── Tab switcher ── */}
+      <div className="flex items-center gap-1 p-1 bg-white/3 border border-white/8 rounded-xl w-fit">
+        <button
+          onClick={() => setTab("issues")}
+          className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+            tab === "issues" ? "bg-white/10 text-white shadow-sm" : "text-gray-500 hover:text-gray-300"
+          }`}
+        >
+          Issues ({all.length})
+        </button>
+        <button
+          onClick={() => setTab("checks")}
+          className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+            tab === "checks" ? "bg-white/10 text-white shadow-sm" : "text-gray-500 hover:text-gray-300"
+          }`}
+        >
+          All Checks ({totalChecks})
+        </button>
+      </div>
 
-      {/* ── Filter Bar ── */}
-      {all.length > 0 && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-gray-600 text-xs font-medium mr-1">Show:</span>
-          {([
-            ["all",      `All (${all.length})`],
-            ["critical", `⊗ Critical (${critical.length})`],
-            ["warning",  `⚠ Warnings (${warnings.length})`],
-            ["info",     `ℹ Suggestions (${infos.length})`],
-          ] as const).map(([f, label]) => (
-            <button key={f} onClick={() => setFilter(f)}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                filter === f
-                  ? "bg-indigo-600 text-white shadow-sm shadow-indigo-500/20"
-                  : "bg-white/3 border border-white/10 text-gray-400 hover:text-white hover:border-white/20"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* ── Issue List ── */}
-      {all.length === 0 ? (
-        <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-14 text-center flex flex-col items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-            <CheckCircle size={28} className="text-emerald-400" />
-          </div>
-          <div>
-            <p className="text-white font-bold text-lg">No issues found!</p>
-            <p className="text-gray-400 text-sm mt-1">This site has excellent SEO health. Keep it up!</p>
-          </div>
-        </div>
-      ) : visible.length === 0 ? (
-        <p className="text-gray-500 text-sm text-center py-8">No {filter} issues found.</p>
-      ) : (
-        <div className="space-y-4 max-h-150 overflow-y-auto pr-1 -mr-1">
-          {Object.entries(byPage).map(([url, pageIssues]) => {
-            const pageCrit = pageIssues.filter(i => i.severity === "critical").length;
-            return (
-              <div key={url} className="bg-white/2 border border-white/8 rounded-2xl overflow-hidden">
-                {/* Page URL header */}
-                <div className="flex items-center gap-2.5 px-4 py-3 bg-white/2 border-b border-white/5">
-                  <Globe size={12} className="text-gray-600 shrink-0" />
-                  <a href={url} target="_blank" rel="noreferrer"
-                    className="text-gray-400 text-xs font-mono truncate flex-1 hover:text-indigo-400 transition-colors">
-                    {url}
-                  </a>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {pageCrit > 0 && (
-                      <span className="flex items-center gap-1 text-[10px] text-red-400 bg-red-500/10 border border-red-500/20 rounded-full px-2 py-0.5 font-semibold">
-                        <XCircle size={9} />{pageCrit} critical
-                      </span>
-                    )}
-                    <span className="text-gray-600 text-[10px]">{pageIssues.length} issue{pageIssues.length > 1 ? "s" : ""}</span>
-                  </div>
-                </div>
-                {/* Issues */}
-                <div className="p-3 space-y-2.5">
-                  {pageIssues.map(issue => (
-                    <IssueCard key={issue.id} issue={issue} />
-                  ))}
-                </div>
+      {/* ── Issues tab ── */}
+      {tab === "issues" && (
+        <>
+          {/* Priority callout */}
+          {critical.length > 0 && filter === "all" && (
+            <div className="bg-white/2 border border-red-500/20 rounded-2xl overflow-hidden">
+              <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-red-500/15 bg-red-500/5">
+                <Zap size={14} className="text-red-400" />
+                <p className="text-red-200 text-sm font-bold">Fix These First</p>
+                <span className="text-red-400/50 text-xs ml-1">— highest impact on rankings</span>
+                <span className="ml-auto text-red-400/60 text-xs">{critical.length} critical issue{critical.length !== 1 ? "s" : ""}</span>
               </div>
-            );
-          })}
+              <div className="p-4 space-y-3">
+                {critical.slice(0, 3).map(i => (
+                  <IssueCard key={i.id} issue={i} defaultOpen={critical.length <= 2} />
+                ))}
+                {critical.length > 3 && (
+                  <button
+                    onClick={() => setFilter("critical")}
+                    className="w-full text-center text-xs text-gray-500 hover:text-red-400 transition-colors py-2.5 border border-white/5 hover:border-red-500/20 rounded-xl"
+                  >
+                    View all {critical.length} critical issues →
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Filter bar */}
+          {all.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-gray-600 text-xs font-medium mr-1">Show:</span>
+              {([
+                ["all",      `All (${all.length})`],
+                ["critical", `⊗ Critical (${critical.length})`],
+                ["warning",  `⚠ Warnings (${warnings.length})`],
+                ["info",     `ℹ Suggestions (${infos.length})`],
+              ] as const).map(([f, label]) => (
+                <button key={f} onClick={() => setFilter(f)}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    filter === f
+                      ? "bg-indigo-600 text-white shadow-sm shadow-indigo-500/20"
+                      : "bg-white/3 border border-white/10 text-gray-400 hover:text-white hover:border-white/20"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {all.length === 0 ? (
+            <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-14 text-center flex flex-col items-center gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                <CheckCircle size={28} className="text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-white font-bold text-lg">No issues found!</p>
+                <p className="text-gray-400 text-sm mt-1">This site passed all 61 SEO checks. Excellent work!</p>
+              </div>
+            </div>
+          ) : visible.length === 0 ? (
+            <p className="text-gray-500 text-sm text-center py-8">No {filter} issues found.</p>
+          ) : (
+            <div className="space-y-4 max-h-150 overflow-y-auto pr-1 -mr-1">
+              {Object.entries(byPage).map(([url, pageIssues]) => {
+                const pageCrit = pageIssues.filter(i => i.severity === "critical").length;
+                return (
+                  <div key={url} className="bg-white/2 border border-white/8 rounded-2xl overflow-hidden">
+                    <div className="flex items-center gap-2.5 px-4 py-3 bg-white/2 border-b border-white/5">
+                      <Globe size={12} className="text-gray-600 shrink-0" />
+                      <a href={url} target="_blank" rel="noreferrer"
+                        className="text-gray-400 text-xs font-mono truncate flex-1 hover:text-indigo-400 transition-colors">
+                        {url}
+                      </a>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {pageCrit > 0 && (
+                          <span className="flex items-center gap-1 text-[10px] text-red-400 bg-red-500/10 border border-red-500/20 rounded-full px-2 py-0.5 font-semibold">
+                            <XCircle size={9} />{pageCrit} critical
+                          </span>
+                        )}
+                        <span className="text-gray-600 text-[10px]">{pageIssues.length} issue{pageIssues.length > 1 ? "s" : ""}</span>
+                      </div>
+                    </div>
+                    <div className="p-3 space-y-2.5">
+                      {pageIssues.map(issue => <IssueCard key={issue.id} issue={issue} />)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── All Checks tab ── */}
+      {tab === "checks" && (
+        <div className="max-h-150 overflow-y-auto pr-1 -mr-1">
+          <ChecksOverview issues={all} />
         </div>
       )}
     </div>
