@@ -238,6 +238,7 @@ function IssueCard({ issue, defaultOpen = false }: { issue: AuditIssue; defaultO
   const m = SEV[issue.severity];
   return (
     <div className={`rounded-2xl border overflow-hidden ${m.bg}`}>
+      {/* ── Collapsed header ── */}
       <button
         className={`w-full text-left px-5 py-4 flex items-start gap-3.5 transition-colors ${open ? m.header : "hover:bg-white/2"}`}
         onClick={() => setOpen(v => !v)}
@@ -251,52 +252,72 @@ function IssueCard({ issue, defaultOpen = false }: { issue: AuditIssue; defaultO
             <span className="text-gray-600 text-[10px] font-mono">{issue.check_type}</span>
           </div>
           <p className={`text-sm font-semibold leading-snug ${m.color}`}>{issue.title}</p>
-          {!open && (
+          {/* Always-visible detected value pill */}
+          {issue.value && !open && (
+            <div className="mt-2 flex items-center gap-1.5">
+              <span className="text-gray-600 text-[10px] uppercase tracking-wider font-bold shrink-0">Detected:</span>
+              <span className={`text-[11px] font-mono px-2 py-0.5 rounded-md bg-black/40 border border-white/8 truncate max-w-70 ${m.color}`}>
+                {issue.value}
+              </span>
+            </div>
+          )}
+          {!open && !issue.value && (
             <p className="text-gray-500 text-xs mt-0.5 line-clamp-1">{issue.description}</p>
           )}
         </div>
-        <span className={`shrink-0 mt-1 ${m.color} opacity-50 transition-transform ${open ? "rotate-180" : ""}`}>
+        <span className={`shrink-0 mt-1 ${m.color} opacity-50 transition-transform duration-200 ${open ? "rotate-180" : ""}`}>
           <ChevronDown size={15} />
         </span>
       </button>
 
+      {/* ── Expanded diagnostic body ── */}
       {open && (
-        <div className="px-5 pb-5 pt-3 space-y-4 border-t border-white/5">
-          <div className="flex gap-3">
-            <div className="shrink-0 w-5 h-5 mt-0.5 rounded-md bg-white/5 flex items-center justify-center">
-              <AlertTriangle size={11} className="text-gray-500" />
-            </div>
-            <div>
-              <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">What's Wrong</p>
+        <div className="border-t border-white/5">
+
+          {/* Row 1 – What's Wrong */}
+          <div className="flex gap-0 divide-x divide-white/5">
+            <div className="flex-1 px-5 py-4 space-y-1.5">
+              <div className="flex items-center gap-1.5 mb-2">
+                <AlertTriangle size={11} className="text-gray-500" />
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">What's Wrong</p>
+              </div>
               <p className="text-gray-200 text-sm leading-relaxed">{issue.description}</p>
             </div>
           </div>
 
+          {/* Row 2 – Detected Value (full-width, prominent) */}
           {issue.value && (
-            <div>
-              <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1.5">Detected Value</p>
-              <div className="bg-black/40 border border-white/8 rounded-lg px-3.5 py-3">
+            <div className="px-5 py-4 border-t border-white/5 bg-black/20">
+              <div className="flex items-center gap-1.5 mb-2.5">
+                <div className={`w-1.5 h-1.5 rounded-full ${m.color.replace("text-", "bg-")}`} />
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Detected Value</p>
+              </div>
+              <div className="bg-black/50 border border-white/10 rounded-xl px-4 py-3.5">
                 <p className={`text-sm font-mono break-all leading-relaxed ${m.color}`}>{issue.value}</p>
               </div>
             </div>
           )}
 
+          {/* Row 3 – How to Fix */}
           {issue.suggestion && (
-            <div className={`rounded-xl border p-4 ${m.fixBg}`}>
-              <div className="flex items-center gap-2 mb-2.5">
-                <Lightbulb size={13} className={m.color} />
-                <p className={`text-[11px] font-bold uppercase tracking-wider ${m.color}`}>How to Fix</p>
+            <div className={`px-5 py-4 border-t border-white/5 ${m.fixBg.split(" ")[0]}/30`}>
+              <div className="flex items-center gap-1.5 mb-2.5">
+                <Lightbulb size={11} className={m.color} />
+                <p className={`text-[10px] font-bold uppercase tracking-wider ${m.color}`}>How to Fix</p>
               </div>
               <p className={`text-sm leading-relaxed ${m.fixText}`}>{issue.suggestion}</p>
             </div>
           )}
 
-          <a href={issue.url} target="_blank" rel="noreferrer"
-            className="flex items-center gap-2 text-xs font-mono text-gray-500 hover:text-indigo-400 transition-colors">
-            <Globe size={11} className="shrink-0" />
-            <span className="truncate">{issue.url}</span>
-            <ExternalLink size={10} className="shrink-0" />
-          </a>
+          {/* Footer – page URL */}
+          <div className="px-5 py-3 border-t border-white/5 bg-white/1 flex items-center gap-2">
+            <Globe size={10} className="text-gray-600 shrink-0" />
+            <a href={issue.url} target="_blank" rel="noreferrer"
+              className="text-[11px] font-mono text-gray-600 hover:text-indigo-400 transition-colors truncate flex-1">
+              {issue.url}
+            </a>
+            <ExternalLink size={10} className="text-gray-700 shrink-0" />
+          </div>
         </div>
       )}
     </div>
