@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import AuditSection from "@/components/AuditSection";
+import DomainStatsCard from "@/components/DomainStatsCard";
 
 interface Project {
   id: string;
@@ -64,6 +65,9 @@ export default async function ProjectDetailPage({
           Delete
         </Link>
       </div>
+
+      {/* Domain Authority — client component, fetches Majestic */}
+      <DomainStatsCard domain={project.domain} />
 
       {/* Audit trigger + results — client component for interactivity */}
       <AuditSection
