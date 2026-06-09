@@ -2,6 +2,7 @@ package writer
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -17,6 +18,16 @@ type Writer struct {
 
 func New(pool *pgxpool.Pool) *Writer {
 	return &Writer{pool: pool}
+}
+
+// SaveSiteIssue writes a single site-level issue (e.g. robots.txt, broken link).
+func (w *Writer) SaveSiteIssue(ctx context.Context, issue *models.AuditIssue) error {
+	_, err := w.pool.Exec(ctx, `
+		INSERT INTO audit_issues (audit_id, url, check_type, severity, title, description, suggestion, value)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`, issue.AuditID, issue.URL, issue.CheckType, string(issue.Severity),
+		issue.Title, issue.Description, issue.Suggestion, issue.Value)
+	return err
 }
 
 // SavePageResult writes audit issues for a single crawled page.
@@ -134,3 +145,85 @@ func (b *pgxBatch) send(ctx context.Context, pool *pgxpool.Pool) error {
 
 // Ensure models package is used (avoids unused import error while engine is developed).
 var _ = models.SeverityCritical
+
+// SaveDuplicateIssues checks all pages in an audit for duplicate titles and meta
+// descriptions, then inserts issues for any duplicates found.
+func (w *Writer) SaveDuplicateIssues(ctx context.Context, auditID string) error {
+	// Find duplicate titles
+	titleRows, err := w.pool.Query(ctx, `
+		SELECT title_text, COUNT(*) as cnt, ARRAY_AGG(url ORDER BY url) as urls
+		FROM (
+			SELECT url,
+				(SELECT value FROM audit_issues
+				 WHERE audit_id = $1 AND check_type = 'title_too_long' AND url = ai.url
+				 LIMIT 1) as title_text
+			FROM audit_issues ai
+			WHERE audit_id = $1
+			GROUP BY url
+		) t
+		WHERE title_text IS NOT NULL AND title_text != ''
+		GROUP BY title_text
+		HAVING COUNT(*) > 1
+	`, auditID)
+	if err == nil {
+		defer titleRows.Close()
+		for titleRows.Next() {
+			var titleText string
+			var cnt int
+			var urls []string
+			if err := titleRows.Scan(&titleText, &cnt, &urls); err != nil {
+				continue
+			}
+			for _, u := range urls {
+				_, _ = w.pool.Exec(ctx, `
+					INSERT INTO audit_issues (audit_id, url, check_type, severity, title, description, suggestion, value)
+					VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+				`, auditID, u, "duplicate_title", string(models.SeverityWarning),
+					"Duplicate page title",
+					"This page shares the same title tag with "+fmt.Sprintf("%d", cnt-1)+" other page(s). Duplicate titles confuse search engines about which page to rank and reduce the uniqueness signal for each page.",
+					"Write a unique, descriptive title for each page that reflects its specific content. Target 50–60 characters.",
+					titleText)
+			}
+		}
+	}
+
+	// Find duplicate meta descriptions using the same approach
+	metaRows, err2 := w.pool.Query(ctx, `
+		SELECT meta_text, COUNT(*) as cnt, ARRAY_AGG(url ORDER BY url) as urls
+		FROM (
+			SELECT url,
+				(SELECT value FROM audit_issues
+				 WHERE audit_id = $1 AND check_type = 'meta_too_long' AND url = ai.url
+				 LIMIT 1) as meta_text
+			FROM audit_issues ai
+			WHERE audit_id = $1
+			GROUP BY url
+		) t
+		WHERE meta_text IS NOT NULL AND meta_text != ''
+		GROUP BY meta_text
+		HAVING COUNT(*) > 1
+	`, auditID)
+	if err2 == nil {
+		defer metaRows.Close()
+		for metaRows.Next() {
+			var metaText string
+			var cnt int
+			var urls []string
+			if err := metaRows.Scan(&metaText, &cnt, &urls); err != nil {
+				continue
+			}
+			for _, u := range urls {
+				_, _ = w.pool.Exec(ctx, `
+					INSERT INTO audit_issues (audit_id, url, check_type, severity, title, description, suggestion, value)
+					VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+				`, auditID, u, "duplicate_meta", string(models.SeverityWarning),
+					"Duplicate meta description",
+					"This page shares the same meta description with "+fmt.Sprintf("%d", cnt-1)+" other page(s). Unique meta descriptions improve click-through rates from search results and help Google understand page content.",
+					"Write a unique meta description for each page (120–155 characters) summarising its specific content.",
+					metaText)
+			}
+		}
+	}
+
+	return nil
+}

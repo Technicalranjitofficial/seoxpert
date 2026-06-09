@@ -86,6 +86,40 @@ type techSignals struct {
 	ViewportContent string `json:"viewportContent"`
 }
 
+
+// advancedSignals holds URL, CWV, schema, pagination, content-quality signals.
+type advancedSignals struct {
+	// URL quality
+	URLLength         int    `json:"urlLength"`
+	URLHasUppercase   bool   `json:"urlHasUppercase"`
+	URLHasUnderscore  bool   `json:"urlHasUnderscore"`
+	URLHasSpecialChars bool  `json:"urlHasSpecialChars"`
+	URLDepth          int    `json:"urlDepth"`
+
+	// Core Web Vitals (measured via Performance API after load)
+	FCPMs             float64 `json:"fcpMs"`
+	LCPMs             float64 `json:"lcpMs"`
+
+	// Schema types present
+	SchemaTypes       []string `json:"schemaTypes"`
+
+	// Pagination
+	HasPrevRel        bool   `json:"hasPrevRel"`
+	HasNextRel        bool   `json:"hasNextRel"`
+	IsPaginated       bool   `json:"isPaginated"`
+
+	// Hreflang
+	HasXDefault       bool   `json:"hasXDefault"`
+	HreflangLangs     []string `json:"hreflangLangs"`
+
+	// Content quality
+	PublishedDate     string `json:"publishedDate"`
+	ModifiedDate      string `json:"modifiedDate"`
+	AvgSentenceWords  float64 `json:"avgSentenceWords"`
+	KeywordDensityPct float64 `json:"keywordDensityPct"`
+	BodyWordsFull     int    `json:"bodyWordsFull"`
+}
+
 // pageSignals holds all DOM data extracted via chromedp.
 type pageSignals struct {
 	title       string
@@ -113,6 +147,7 @@ type pageSignals struct {
 	images   imageSignals
 	headings headingSignals
 	tech     techSignals
+	advanced advancedSignals
 }
 
 // New creates a chromedp browser allocator.
@@ -205,7 +240,7 @@ func (e *Engine) CrawlPage(ctx context.Context, auditID, pageURL string) (*PageR
 	sig.hasHTTPS = strings.HasPrefix(pageURL, "https://")
 
 	// JSON result holders for composite evaluations
-	var linkJSON, imageJSON, headingJSON, techJSON string
+	var linkJSON, imageJSON, headingJSON, techJSON, advancedJSON string
 
 	var navStart time.Time
 	err := chromedp.Run(tabCtx,
@@ -320,6 +355,95 @@ func (e *Engine) CrawlPage(ctx context.Context, auditID, pageURL string) (*PageR
 				viewportContent: document.querySelector('meta[name="viewport"]')?.content || ''
 			};
 		})())`, &techJSON),
+
+		// ── Composite: Advanced signals (URL, CWV, schema, content quality) ──
+		chromedp.Evaluate(`JSON.stringify((() => {
+			const path = location.pathname;
+			const href = location.href;
+
+			// URL signals
+			const urlDepth = path.split('/').filter(Boolean).length;
+			const urlHasUppercase = /[A-Z]/.test(path);
+			const urlHasUnderscore = path.includes('_');
+			const urlHasSpecialChars = /[^a-z0-9\-\/\._~%]/.test(path.toLowerCase());
+
+			// Core Web Vitals via Performance API
+			let fcpMs = 0, lcpMs = 0;
+			try {
+				const paintEntries = performance.getEntriesByType('paint');
+				const fcp = paintEntries.find(e => e.name === 'first-contentful-paint');
+				if (fcp) fcpMs = fcp.startTime;
+				const lcpEntries = performance.getEntriesByType('largest-contentful-paint');
+				if (lcpEntries.length > 0) lcpMs = lcpEntries[lcpEntries.length-1].startTime;
+			} catch(e) {}
+
+			// Schema types
+			const schemaTypes = [...document.querySelectorAll('script[type="application/ld+json"]')]
+				.map(s => { try { const d = JSON.parse(s.textContent); return Array.isArray(d) ? d.map(x=>x['@type']||'').join(',') : (d['@type']||''); } catch { return ''; } })
+				.filter(Boolean);
+
+			// Pagination
+			const hasPrevRel = !!document.querySelector('link[rel="prev"]');
+			const hasNextRel = !!document.querySelector('link[rel="next"]');
+			const isPaginated = /(?:page[=\/]\d+|\/p\/\d+|\?.*page=\d+)/i.test(href);
+
+			// Hreflang x-default
+			const hreflangLinks = [...document.querySelectorAll('link[hreflang]')];
+			const hasXDefault = hreflangLinks.some(l => (l.getAttribute('hreflang')||'').toLowerCase() === 'x-default');
+			const hreflangLangs = hreflangLinks.map(l => l.getAttribute('hreflang')||'');
+
+			// Content freshness
+			const publishedDate = document.querySelector('meta[property="article:published_time"]')?.content
+				|| document.querySelector('time[itemprop="datePublished"]')?.getAttribute('datetime')
+				|| document.querySelector('[class*="publish"],[class*="date"] time')?.getAttribute('datetime')
+				|| '';
+			const modifiedDate = document.querySelector('meta[property="article:modified_time"]')?.content
+				|| document.querySelector('time[itemprop="dateModified"]')?.getAttribute('datetime')
+				|| '';
+
+			// Readability: avg words per sentence
+			const paras = [...document.querySelectorAll('p')].map(p => p.textContent.trim()).filter(t => t.length > 30);
+			let totalSentences = 0, totalWords = 0;
+			paras.forEach(p => {
+				const sentences = p.split(/[.!?]+/).filter(s => s.trim().length > 5);
+				totalSentences += sentences.length;
+				sentences.forEach(s => { totalWords += s.trim().split(/\s+/).length; });
+			});
+			const avgSentenceWords = totalSentences > 0 ? totalWords / totalSentences : 0;
+
+			// Keyword density: use H1 as proxy for primary keyword
+			const h1 = (document.querySelector('h1')?.innerText || '').trim().toLowerCase();
+			const bodyText = document.body.innerText.toLowerCase();
+			const bodyWords = bodyText.split(/\s+/).filter(Boolean);
+			let keywordDensityPct = 0;
+			if (h1 && h1.split(/\s+/).length >= 2 && bodyWords.length > 50) {
+				const kw = h1.split(/\s+/).slice(0,2).join(' ');
+				const kwRegex = new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi');
+				const matches = (bodyText.match(kwRegex)||[]).length;
+				keywordDensityPct = (matches / bodyWords.length) * 100;
+			}
+
+			return {
+				urlLength: href.length,
+				urlHasUppercase,
+				urlHasUnderscore,
+				urlHasSpecialChars,
+				urlDepth,
+				fcpMs,
+				lcpMs,
+				schemaTypes,
+				hasPrevRel,
+				hasNextRel,
+				isPaginated,
+				hasXDefault,
+				hreflangLangs,
+				publishedDate,
+				modifiedDate,
+				avgSentenceWords,
+				keywordDensityPct,
+				bodyWordsFull: bodyWords.length
+			};
+		})())`, &advancedJSON),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("chromedp navigate %s: %w", pageURL, err)
@@ -338,6 +462,7 @@ func (e *Engine) CrawlPage(ctx context.Context, auditID, pageURL string) (*PageR
 	_ = json.Unmarshal([]byte(imageJSON), &sig.images)
 	_ = json.Unmarshal([]byte(headingJSON), &sig.headings)
 	_ = json.Unmarshal([]byte(techJSON), &sig.tech)
+	_ = json.Unmarshal([]byte(advancedJSON), &sig.advanced)
 
 	// ── Run all checks ────────────────────────────────────────────────────────
 	result := &PageResult{URL: pageURL, CrawlMs: time.Since(start).Milliseconds()}
@@ -414,6 +539,29 @@ func (e *Engine) CrawlPage(ctx context.Context, auditID, pageURL string) (*PageR
 		// ── Structured data (2 checks) ────────────────────────────────────
 		func() *models.AuditIssue { return checkSchema(auditID, pageURL, sig.hasSchema) },
 		func() *models.AuditIssue { return checkSitemapLink(auditID, pageURL, sig.tech.HasSitemapLink) },
+		// ── Advanced schema (4 checks) ───────────────────────────────────────
+		func() *models.AuditIssue { return checkBreadcrumbSchema(auditID, pageURL, sig.advanced.SchemaTypes, sig.advanced.URLDepth) },
+		func() *models.AuditIssue { return checkFAQSchema(auditID, pageURL, sig.advanced.SchemaTypes, sig.bodyText) },
+		func() *models.AuditIssue { return checkProductSchema(auditID, pageURL, sig.advanced.SchemaTypes, sig.bodyText) },
+		func() *models.AuditIssue { return checkRatingSchema(auditID, pageURL, sig.advanced.SchemaTypes, sig.bodyText) },
+		// ── URL quality (5 checks) ────────────────────────────────────────────
+		func() *models.AuditIssue { return checkURLTooLong(auditID, pageURL, sig.advanced.URLLength) },
+		func() *models.AuditIssue { return checkURLUppercase(auditID, pageURL, sig.advanced.URLHasUppercase) },
+		func() *models.AuditIssue { return checkURLUnderscores(auditID, pageURL, sig.advanced.URLHasUnderscore) },
+		func() *models.AuditIssue { return checkURLSpecialChars(auditID, pageURL, sig.advanced.URLHasSpecialChars) },
+		func() *models.AuditIssue { return checkURLDepth(auditID, pageURL, sig.advanced.URLDepth) },
+		// ── Core Web Vitals (2 checks) ────────────────────────────────────────
+		func() *models.AuditIssue { return checkFCP(auditID, pageURL, sig.advanced.FCPMs) },
+		func() *models.AuditIssue { return checkLCP(auditID, pageURL, sig.advanced.LCPMs) },
+		// ── Pagination (1 check) ──────────────────────────────────────────────
+		func() *models.AuditIssue { return checkPaginationMarkup(auditID, pageURL, sig.advanced.IsPaginated, sig.advanced.HasPrevRel, sig.advanced.HasNextRel) },
+		// ── Hreflang (2 checks) ───────────────────────────────────────────────
+		func() *models.AuditIssue { return checkHreflangXDefault(auditID, pageURL, sig.tech.HreflangCount, sig.advanced.HasXDefault) },
+		func() *models.AuditIssue { return checkHreflangSelfRef(auditID, pageURL, sig.tech.HreflangCount, sig.advanced.HreflangLangs) },
+		// ── Content quality (3 checks) ────────────────────────────────────────
+		func() *models.AuditIssue { return checkKeywordStuffing(auditID, pageURL, sig.advanced.KeywordDensityPct, sig.h1Text) },
+		func() *models.AuditIssue { return checkReadability(auditID, pageURL, sig.advanced.AvgSentenceWords, sig.wordCount) },
+		func() *models.AuditIssue { return checkContentFreshness(auditID, pageURL, sig.advanced.PublishedDate, sig.advanced.ModifiedDate) },
 	}
 
 	for _, check := range checks {
@@ -1283,4 +1431,328 @@ func checkSitemapLink(auditID, pageURL string, hasSitemapLink bool) *models.Audi
 		"No <link rel=\"sitemap\"> found in <head>. Sitemap link tags help crawlers discover your XML sitemap directly from HTML pages.",
 		"Add <link rel=\"sitemap\" type=\"application/xml\" title=\"Sitemap\" href=\"/sitemap.xml\"> to your <head>.",
 		"")
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ADVANCED SCHEMA checks
+// ─────────────────────────────────────────────────────────────────────────────
+
+func containsSchemaType(types []string, want string) bool {
+	for _, t := range types {
+		if strings.Contains(strings.ToLower(t), strings.ToLower(want)) {
+			return true
+		}
+	}
+	return false
+}
+
+func checkBreadcrumbSchema(auditID, pageURL string, schemaTypes []string, depth int) *models.AuditIssue {
+	if depth <= 1 {
+		return nil // homepage — skip
+	}
+	if containsSchemaType(schemaTypes, "BreadcrumbList") {
+		return nil
+	}
+	return issue(auditID, pageURL, "missing_breadcrumb_schema", models.SeverityInfo,
+		"Missing BreadcrumbList structured data",
+		"Inner pages without BreadcrumbList JSON-LD miss out on breadcrumb rich results in Google, which improve CTR and help users understand site structure.",
+		"Add a BreadcrumbList JSON-LD block listing each parent page. Many CMS plugins (Yoast, RankMath) can generate this automatically.",
+		fmt.Sprintf("URL depth: %d levels", depth))
+}
+
+func checkFAQSchema(auditID, pageURL string, schemaTypes []string, bodyText string) *models.AuditIssue {
+	if containsSchemaType(schemaTypes, "FAQPage") {
+		return nil
+	}
+	lower := strings.ToLower(bodyText)
+	// Page looks like an FAQ if it has multiple question-pattern repetitions
+	questionCount := strings.Count(lower, "frequently asked") +
+		strings.Count(lower, "what is ") + strings.Count(lower, "how do ") +
+		strings.Count(lower, "why does") + strings.Count(lower, "can i ")
+	if questionCount < 4 {
+		return nil
+	}
+	return issue(auditID, pageURL, "missing_faq_schema", models.SeverityInfo,
+		"FAQ content detected but no FAQPage schema",
+		"This page appears to contain FAQ-style content (multiple question-answer pairs) but has no FAQPage JSON-LD markup. Google can show FAQ rich results directly in SERPs, dramatically increasing SERP real estate.",
+		"Wrap your Q&A pairs in FAQPage JSON-LD schema. Each question needs a 'Question' item with an 'Answer'.",
+		fmt.Sprintf("~%d question-like patterns detected", questionCount))
+}
+
+func checkProductSchema(auditID, pageURL string, schemaTypes []string, bodyText string) *models.AuditIssue {
+	if containsSchemaType(schemaTypes, "Product") || containsSchemaType(schemaTypes, "Offer") {
+		return nil
+	}
+	lower := strings.ToLower(bodyText)
+	// Simple heuristic: price pattern + "add to cart" / "buy now"
+	hasPrice := strings.Contains(lower, "$") || strings.Contains(lower, "₹") ||
+		strings.Contains(lower, "price") || strings.Contains(lower, "buy now") ||
+		strings.Contains(lower, "add to cart")
+	if !hasPrice {
+		return nil
+	}
+	return issue(auditID, pageURL, "missing_product_schema", models.SeverityWarning,
+		"Product page missing Product structured data",
+		"This page appears to be a product page (price/buy signals detected) but has no Product JSON-LD. Product schema enables rich results showing price, availability, and ratings directly in Google SERPs.",
+		"Add Product JSON-LD with name, description, image, offers (price, availability), and ideally aggregateRating.",
+		"Price/buy signals detected without Product schema")
+}
+
+func checkRatingSchema(auditID, pageURL string, schemaTypes []string, bodyText string) *models.AuditIssue {
+	if containsSchemaType(schemaTypes, "AggregateRating") || containsSchemaType(schemaTypes, "Review") {
+		return nil
+	}
+	lower := strings.ToLower(bodyText)
+	hasReviews := (strings.Contains(lower, "review") || strings.Contains(lower, "rating") ||
+		strings.Contains(lower, "stars") || strings.Contains(lower, "out of 5")) &&
+		(strings.Count(lower, "review") >= 3 || strings.Contains(lower, "verified purchase"))
+	if !hasReviews {
+		return nil
+	}
+	return issue(auditID, pageURL, "missing_rating_schema", models.SeverityInfo,
+		"Review content detected but no AggregateRating schema",
+		"This page appears to have review/rating content but lacks AggregateRating JSON-LD. Star ratings in Google SERPs significantly improve click-through rates.",
+		"Add AggregateRating inside your Product or Organization schema with ratingValue, ratingCount, and bestRating.",
+		"Review/rating content detected without schema markup")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// URL QUALITY checks
+// ─────────────────────────────────────────────────────────────────────────────
+
+func checkURLTooLong(auditID, pageURL string, urlLen int) *models.AuditIssue {
+	if urlLen <= 75 {
+		return nil
+	}
+	sev := models.SeverityInfo
+	if urlLen > 115 {
+		sev = models.SeverityWarning
+	}
+	return issue(auditID, pageURL, "url_too_long", sev,
+		"URL is too long",
+		fmt.Sprintf("URL is %d characters. Long URLs are harder to share, less readable in SERPs, and can reduce click-through rates. Google may also truncate them in search results.", urlLen),
+		"Keep URLs under 75 characters. Use short, descriptive slugs. Remove stop words (a, the, of, in) from URL paths.",
+		fmt.Sprintf("%d characters", urlLen))
+}
+
+func checkURLUppercase(auditID, pageURL string, hasUppercase bool) *models.AuditIssue {
+	if !hasUppercase {
+		return nil
+	}
+	u, _ := url.Parse(pageURL)
+	path := u.Path
+	return issue(auditID, pageURL, "url_has_uppercase", models.SeverityWarning,
+		"URL contains uppercase letters",
+		"URLs with uppercase letters can cause duplicate content issues — servers may treat /Page and /page as different URLs, splitting PageRank. Uppercase URLs also look inconsistent in links.",
+		"Redirect uppercase URL variants to lowercase equivalents at the server level. Ensure all internal links use lowercase URLs.",
+		path)
+}
+
+func checkURLUnderscores(auditID, pageURL string, hasUnderscore bool) *models.AuditIssue {
+	if !hasUnderscore {
+		return nil
+	}
+	u, _ := url.Parse(pageURL)
+	return issue(auditID, pageURL, "url_has_underscores", models.SeverityWarning,
+		"URL uses underscores instead of hyphens",
+		"Google treats underscores as word joiners (my_page = 'mypage'), not word separators like hyphens do. Using hyphens (my-page) ensures each word is treated as a separate keyword.",
+		"Replace all underscores with hyphens in URL paths. Set up 301 redirects from old underscore URLs to new hyphen versions.",
+		u.Path)
+}
+
+func checkURLSpecialChars(auditID, pageURL string, hasSpecial bool) *models.AuditIssue {
+	if !hasSpecial {
+		return nil
+	}
+	u, _ := url.Parse(pageURL)
+	return issue(auditID, pageURL, "url_special_chars", models.SeverityWarning,
+		"URL contains special characters",
+		"Special characters (other than hyphens) in URLs require percent-encoding, making URLs ugly and error-prone when shared. They can also cause issues with certain crawlers and analytics tools.",
+		"Use only lowercase letters, numbers, and hyphens in URL paths. Avoid spaces, ampersands, commas, or other special characters.",
+		u.Path)
+}
+
+func checkURLDepth(auditID, pageURL string, depth int) *models.AuditIssue {
+	if depth <= 4 {
+		return nil
+	}
+	return issue(auditID, pageURL, "url_too_deep", models.SeverityInfo,
+		"URL hierarchy too deep",
+		fmt.Sprintf("URL is %d levels deep (%s). Pages buried deep in the site structure are harder for search engines to discover and may be perceived as less important.", depth, pageURL),
+		"Flatten your site architecture. Aim for all important pages to be reachable within 3 clicks from the homepage.",
+		fmt.Sprintf("%d folder levels deep", depth))
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CORE WEB VITALS checks
+// ─────────────────────────────────────────────────────────────────────────────
+
+func checkFCP(auditID, pageURL string, fcpMs float64) *models.AuditIssue {
+	if fcpMs <= 0 || fcpMs <= 1800 {
+		return nil
+	}
+	sev := models.SeverityWarning
+	msg := "First Contentful Paint is 1.8–3s — needs improvement"
+	if fcpMs > 3000 {
+		sev = models.SeverityCritical
+		msg = "First Contentful Paint is over 3s — very poor"
+	}
+	return issue(auditID, pageURL, "slow_fcp", sev,
+		msg,
+		fmt.Sprintf("FCP was %.0fms. First Contentful Paint measures how quickly users see any content. Google's threshold for 'Good' is under 1.8s. Slow FCP increases bounce rate significantly.", fcpMs),
+		"Reduce render-blocking resources, preload critical fonts and CSS, enable server-side caching, and use a CDN to reduce latency.",
+		fmt.Sprintf("%.0fms (threshold: 1800ms)", fcpMs))
+}
+
+func checkLCP(auditID, pageURL string, lcpMs float64) *models.AuditIssue {
+	if lcpMs <= 0 || lcpMs <= 2500 {
+		return nil
+	}
+	sev := models.SeverityWarning
+	msg := "Largest Contentful Paint is 2.5–4s"
+	if lcpMs > 4000 {
+		sev = models.SeverityCritical
+		msg = "Largest Contentful Paint is over 4s — poor Core Web Vital"
+	}
+	return issue(auditID, pageURL, "slow_lcp", sev,
+		msg,
+		fmt.Sprintf("LCP was %.0fms. Largest Contentful Paint is a primary Core Web Vital used in Google's ranking algorithm. 'Good' threshold is under 2.5s.", lcpMs),
+		"Optimise the largest above-fold element (usually hero image or H1): preload it, compress it, serve via CDN, and eliminate any render-blocking resources above it.",
+		fmt.Sprintf("%.0fms (threshold: 2500ms)", lcpMs))
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PAGINATION checks
+// ─────────────────────────────────────────────────────────────────────────────
+
+func checkPaginationMarkup(auditID, pageURL string, isPaginated, hasPrev, hasNext bool) *models.AuditIssue {
+	if !isPaginated {
+		return nil
+	}
+	if hasPrev || hasNext {
+		return nil // at least one is present
+	}
+	return issue(auditID, pageURL, "missing_pagination_markup", models.SeverityWarning,
+		"Paginated page missing rel=prev/next",
+		"This URL appears to be a paginated page (page=N pattern detected) but has no rel=prev or rel=next link tags. Without these, Google may not understand the page series relationship.",
+		"Add a <link rel=\"prev\"> pointing to the previous page and <link rel=\"next\"> pointing to the next page in each paginated series.",
+		pageURL)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HREFLANG checks
+// ─────────────────────────────────────────────────────────────────────────────
+
+func checkHreflangXDefault(auditID, pageURL string, hreflangCount int, hasXDefault bool) *models.AuditIssue {
+	if hreflangCount == 0 || hasXDefault {
+		return nil
+	}
+	return issue(auditID, pageURL, "hreflang_missing_xdefault", models.SeverityWarning,
+		"Hreflang set missing x-default",
+		fmt.Sprintf("This page has %d hreflang tags but is missing the x-default fallback. Without x-default, Google doesn't know which page to show users whose language/region isn't explicitly targeted.", hreflangCount),
+		"Add <link rel=\"alternate\" hreflang=\"x-default\" href=\"{url}\"> pointing to the default/international version of the page.",
+		fmt.Sprintf("%d hreflang tags, no x-default", hreflangCount))
+}
+
+func checkHreflangSelfRef(auditID, pageURL string, hreflangCount int, langs []string) *models.AuditIssue {
+	if hreflangCount == 0 {
+		return nil
+	}
+	// Flag if we have hreflang but fewer than 2 lang tags (likely a mis-implementation)
+	uniqueLangs := map[string]bool{}
+	for _, l := range langs {
+		if l != "" && l != "x-default" {
+			uniqueLangs[l] = true
+		}
+	}
+	if len(uniqueLangs) >= 2 {
+		return nil
+	}
+	return issue(auditID, pageURL, "hreflang_single_lang", models.SeverityInfo,
+		"Hreflang implemented with only one language",
+		"Page has hreflang attributes but only one language variant is specified. Hreflang only makes sense when targeting multiple languages/regions — a single-language hreflang is pointless.",
+		"Either remove the lone hreflang tag, or add hreflang tags for all language/region variants of this page including x-default.",
+		fmt.Sprintf("Only 1 language in hreflang set: %s", strings.Join(langs, ", ")))
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONTENT QUALITY checks
+// ─────────────────────────────────────────────────────────────────────────────
+
+func checkKeywordStuffing(auditID, pageURL string, densityPct float64, h1Text string) *models.AuditIssue {
+	if h1Text == "" || densityPct == 0 {
+		return nil
+	}
+	if densityPct <= 3.5 {
+		return nil
+	}
+	sev := models.SeverityWarning
+	label := "high"
+	if densityPct > 6 {
+		sev = models.SeverityCritical
+		label = "very high"
+	}
+	return issue(auditID, pageURL, "keyword_stuffing", sev,
+		fmt.Sprintf("Keyword density too %s — possible keyword stuffing", label),
+		fmt.Sprintf("Primary keyword density is %.1f%% (based on H1 keyword %q). Above 3.5%% risks a Google spam penalty. Natural, readable content typically has keyword density of 1–2%%.", densityPct, h1Text),
+		"Write naturally for your readers, not for search engines. Use synonyms and related terms (LSI keywords) instead of repeating the exact keyword.",
+		fmt.Sprintf("%.1f%% density for %q", densityPct, truncate(h1Text, 60)))
+}
+
+func checkReadability(auditID, pageURL string, avgSentenceWords float64, wordCount int) *models.AuditIssue {
+	if wordCount < 150 || avgSentenceWords == 0 {
+		return nil
+	}
+	if avgSentenceWords <= 25 {
+		return nil
+	}
+	sev := models.SeverityInfo
+	level := "complex"
+	if avgSentenceWords > 35 {
+		sev = models.SeverityWarning
+		level = "very complex"
+	}
+	return issue(auditID, pageURL, "content_readability", sev,
+		fmt.Sprintf("Content readability is %s", level),
+		fmt.Sprintf("Average sentence length is %.0f words. Sentences over 20 words are harder to read — this hurts user engagement and dwell time, which are indirect ranking signals.", avgSentenceWords),
+		"Break long sentences into shorter ones. Aim for an average of 15–20 words per sentence. Use bullet points and subheadings to break up dense paragraphs.",
+		fmt.Sprintf("Average %.0f words/sentence", avgSentenceWords))
+}
+
+func checkContentFreshness(auditID, pageURL, publishedDate, modifiedDate string) *models.AuditIssue {
+	if publishedDate == "" {
+		return nil
+	}
+	pub, err := time.Parse(time.RFC3339, publishedDate)
+	if err != nil {
+		// Try date-only format
+		pub, err = time.Parse("2006-01-02", publishedDate[:10])
+		if err != nil {
+			return nil
+		}
+	}
+	ageYears := time.Since(pub).Hours() / 8760
+	if ageYears < 1.5 {
+		return nil
+	}
+	// If modified recently, it's fine
+	if modifiedDate != "" {
+		mod, err := time.Parse(time.RFC3339, modifiedDate)
+		if err == nil {
+			modAge := time.Since(mod).Hours() / 8760
+			if modAge < 1 {
+				return nil
+			}
+		}
+	}
+	sev := models.SeverityInfo
+	if ageYears > 3 {
+		sev = models.SeverityWarning
+	}
+	return issue(auditID, pageURL, "stale_content", sev,
+		fmt.Sprintf("Content may be stale (published %.0f years ago)", ageYears),
+		fmt.Sprintf("Content published %.0f years ago without a recent modification date. Google favours fresh, up-to-date content — especially for queries where recency matters.", ageYears),
+		"Review and update the content. Add new information, update statistics, refresh examples. Update the lastModified/dateModified metadata to reflect the change.",
+		fmt.Sprintf("Published: %s", pub.Format("2006-01-02")))
 }
