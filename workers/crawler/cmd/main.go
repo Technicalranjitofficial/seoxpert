@@ -49,7 +49,30 @@ func main() {
 
 	w := writer.New(pool)
 
+	// On startup, mark any stale running/pending audits as failed.
+	// These are audits that were in-progress when the worker last crashed/restarted.
+	// Without this, the concurrent-audit check in the API would block new audits forever.
+	if _, err := pool.Exec(ctx,
+		`UPDATE audits SET status = 'failed', completed_at = NOW()
+		 WHERE status IN ('running', 'pending') AND completed_at IS NULL`,
+	); err != nil {
+		slog.Warn("stale audit cleanup failed", "err", err)
+	} else {
+		slog.Info("stale audits cleaned up on startup")
+	}
+
 	handleAudit := func(ctx context.Context, job events.AuditJob) error {
+		// Guard: skip if this audit already completed/failed (handles Redpanda
+		// message replay after a crash/restart — offset wasn't committed yet).
+		var currentStatus string
+		err := pool.QueryRow(ctx,
+			`SELECT status FROM audits WHERE id = $1`, job.AuditID,
+		).Scan(&currentStatus)
+		if err == nil && (currentStatus == "completed" || currentStatus == "failed") {
+			slog.Info("skipping already-finished audit", "audit_id", job.AuditID, "status", currentStatus)
+			return nil // commit the offset so it never replays again
+		}
+
 		slog.Info("audit started", "audit_id", job.AuditID, "domain", job.Domain)
 
 		// ── Multi-page BFS crawl ──────────────────────────────────────
